@@ -12,6 +12,7 @@ export interface JournalEntry {
     content: JournalContent;
     tags: string[];
     deleted: boolean;
+    version: number;
     deletedAt?: string | null;
     createdAt: string;
     updatedAt: string;

@@ -2,14 +2,18 @@ import { create } from "zustand";
 import { apiGet, apiPost, apiPut, apiDelete } from "../api/client";
 import { JournalEntry } from "../types/Journal";
 
+let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+
 interface JournalStore {
     journals: JournalEntry[];
     trash: JournalEntry[];
+    saving: boolean;
 
     loadJournals: () => Promise<void>;
     loadTrash: () => Promise<void>;
-    createJournal: (payload: Partial<JournalEntry>) => Promise<void>;
+    createJournal: (payload: Partial<JournalEntry>) => Promise<JournalEntry>;
     updateJournal: (id: string, payload: Partial<JournalEntry>) => Promise<void>;
+    autosaveJournal: (id: string, payload: Partial<JournalEntry>, delay?:number) => void;
     softDelete: (id: string) => Promise<void>;
     restore: (id: string) => Promise<void>;
     permanentDelete: (id: string) => Promise<void>;
@@ -18,10 +22,11 @@ interface JournalStore {
 export const useJournalStore = create<JournalStore>((set, get) => ({
     journals: [],
     trash: [],
+    saving: false,
 
     loadJournals: async () => {
-    const data = await apiGet("/journals");
-    set({ journals: data });
+        const data = await apiGet("/journals");
+        set({ journals: data });
     },
 
     loadTrash: async () => {
@@ -30,17 +35,42 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
     },
 
     createJournal: async (payload) => {
-    const entry = await apiPost("/journals", payload);
-    set({ journals: [entry, ...get().journals] });
+        const entry = await apiPost("/journals", payload);
+        set({ journals: [entry, ...get().journals] });
+        return entry;
     },
 
     updateJournal: async (id, payload) => {
-        const updated = await apiPut(`/journals/${id}`, payload);
-            set({
+        const journal = get().journals.find(j => j._id === id);
+        if (!journal) return;
+
+        set({ saving: true });
+
+        const updated = await apiPut(`/journals/${id}`, {
+            ...payload,
+            baseVersion: journal.version,
+        });
+
+        set({
             journals: get().journals.map(j =>
             j._id === id ? updated : j
             ),
+            saving: false,
         });
+    },
+
+    autosaveJournal: (id, payload, delay = 1200) => {
+        if (autosaveTimer) {
+            clearTimeout(autosaveTimer);
+        }
+
+        autosaveTimer = setTimeout(async () => {
+        try {
+            await get().updateJournal(id, payload);
+        } catch (err) {
+            console.error("Autosave failed:", err);
+        }
+        }, delay);
     },
 
     softDelete: async (id) => {
