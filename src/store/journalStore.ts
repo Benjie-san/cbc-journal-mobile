@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiGet, apiPost, apiPut, apiDelete } from "../api/client";
+import { auth } from "../firebase/config";
 import { JournalEntry } from "../types/Journal";
 
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -21,29 +22,53 @@ interface JournalStore {
     reset: () => void;
 }
 
+const getOrCreateBackendToken = async () => {
+    let token = await AsyncStorage.getItem("backendToken");
+    if (token) return token;
+    const user = auth.currentUser;
+    if (!user) return null;
+    const idToken = await user.getIdToken(true);
+    const data = await apiPost("/auth", { idToken }, false);
+    token = data?.token ?? null;
+    if (token) {
+        await AsyncStorage.setItem("backendToken", token);
+    }
+    return token;
+};
+
 export const useJournalStore = create<JournalStore>((set, get) => ({
     journals: [],
     trash: [],
     saving: false,
 
     loadJournals: async () => {
-        const token = await AsyncStorage.getItem("backendToken");
+        const token = await getOrCreateBackendToken();
         if (!token) {
             set({ journals: [] });
             return;
         }
-        const data = await apiGet("/journals");
-        set({ journals: data });
+        try {
+            const data = await apiGet("/journals");
+            set({ journals: data });
+        } catch (err) {
+            console.error("Failed to load journals:", err);
+            set({ journals: [] });
+        }
     },
 
     loadTrash: async () => {
-    const token = await AsyncStorage.getItem("backendToken");
+    const token = await getOrCreateBackendToken();
     if (!token) {
         set({ trash: [] });
         return;
     }
-    const data = await apiGet("/journals/trash");
-    set({ trash: data });
+    try {
+        const data = await apiGet("/journals/trash");
+        set({ trash: data });
+    } catch (err) {
+        console.error("Failed to load trash:", err);
+        set({ trash: [] });
+    }
     },
 
     createJournal: async (payload) => {

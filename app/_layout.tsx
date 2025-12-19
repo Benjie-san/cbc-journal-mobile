@@ -5,10 +5,15 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { auth } from "../src/firebase/config";
 import { apiGet, apiPost } from "../src/api/client";
 import { useJournalStore } from "../src/store/journalStore";
+import { useAuthStore } from "../src/store/authStore";
 
 export default function RootLayout() {
   const [firebaseReady, setFirebaseReady] = useState(false);
   const resetStore = useJournalStore((state) => state.reset);
+  const setFirebaseReadyStore = useAuthStore((state) => state.setFirebaseReady);
+  const setBackendReady = useAuthStore((state) => state.setBackendReady);
+  const setUser = useAuthStore((state) => state.setUser);
+  const resetAuth = useAuthStore((state) => state.reset);
 
   useEffect(() => {
     const exchangeBackendToken = async (firebaseUser: User) => {
@@ -24,9 +29,12 @@ export default function RootLayout() {
     const unsub = onAuthStateChanged(auth, async (user) => {
       console.log("FIREBASE AUTH STATE:", user ? "LOGGED IN" : "LOGGED OUT");
       setFirebaseReady(true);
+      setFirebaseReadyStore(true);
+      setUser(user);
 
       if (!user) {
         resetStore();
+        resetAuth();
         await AsyncStorage.removeItem("backendToken");
         router.replace("/(auth)");
         return;
@@ -45,6 +53,7 @@ export default function RootLayout() {
         }
         if (!token) {
           resetStore();
+          resetAuth();
           router.replace("/(auth)");
           return;
         }
@@ -55,16 +64,19 @@ export default function RootLayout() {
         const me = await apiGet("/me");
         console.log("SESSION RESTORED, ME:", me);
 
+        setBackendReady(true);
         router.replace("/(tabs)");
       } catch (err) {
         console.log("Backend session invalid -> retry /auth");
         try {
           await exchangeBackendToken(user);
           await apiGet("/me");
+          setBackendReady(true);
           router.replace("/(tabs)");
         } catch (retryErr) {
           console.log("Backend session restore failed:", retryErr);
           resetStore();
+          resetAuth();
           await AsyncStorage.removeItem("backendToken");
           router.replace("/(auth)");
         }
