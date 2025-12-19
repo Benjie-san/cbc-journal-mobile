@@ -9,6 +9,7 @@ interface JournalStore {
     journals: JournalEntry[];
     trash: JournalEntry[];
     saving: boolean;
+    reset: () => void;
 
     loadJournals: () => Promise<void>;
     loadTrash: () => Promise<void>;
@@ -84,6 +85,14 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
         }
         }, delay);
     },
+
+    reset: () =>
+        set({
+            journals: [],
+            trash: [],
+            saving: false,
+    }),
+
 
     softDelete: async (id) => {
         await apiDelete(`/journals/${id}`);

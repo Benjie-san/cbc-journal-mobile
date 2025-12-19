@@ -2,10 +2,12 @@ import { useEffect } from "react";
 import { View, Text, FlatList, Pressable, StyleSheet } from "react-native";
 import { useJournalStore } from "../../src/store/journalStore";
 import { useRouter } from "expo-router";
+import { useAuthStore } from "@/src/store/authStore";
+
 
 export default function JournalListScreen() {
   const router = useRouter();
-
+  const backendReady = useAuthStore(s => s.backendReady);
   const {
     journals,
     loadJournals,
@@ -13,8 +15,9 @@ export default function JournalListScreen() {
   } = useJournalStore();
 
   useEffect(() => {
-    loadJournals();
-  }, []);
+  if (!backendReady) return;
+  loadJournals();
+  }, [backendReady]);
 
   return (
     <View style={styles.container}>
