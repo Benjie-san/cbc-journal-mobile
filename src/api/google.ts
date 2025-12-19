@@ -5,6 +5,7 @@ import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { apiPost } from "./client";
 
 
 GoogleSignin.configure({
@@ -12,39 +13,28 @@ GoogleSignin.configure({
 });
 
 export async function signInWithGoogle() {
-    // Somewhere in your code
     try {
-        let resultToken;
         await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-  // Get the users ID token
         const signInResult = await GoogleSignin.signIn();
-        // sign in was cancelled by user
-        
-  // Try the new style of google-sign in result, from v13+ of that module
-        resultToken = signInResult.data?.idToken;
-    
-        if (!resultToken) {
-            throw new Error('No ID token found');
+        if (signInResult.type !== "success") return;
+
+        const googleIdToken = signInResult.data.idToken;
+        if (!googleIdToken) {
+            throw new Error("Missing Google ID token");
         }
 
         // Create a Google credential with the token
-        const googleCredential = GoogleAuthProvider.credential(signInResult.data.idToken);
+        const googleCredential = GoogleAuthProvider.credential(googleIdToken);
 
         
-        await signInWithCredential(auth, googleCredential)
-    
-        const idToken = await auth.currentUser?.getIdToken(true);
+        const userCredential = await signInWithCredential(auth, googleCredential);
+        const idToken = await userCredential.user.getIdToken(true);
+        if (!idToken) {
+            throw new Error("Missing Firebase ID token");
+        }
 
         //Send idToken to backend
-        const response = await fetch("http://192.168.254.146:4000/auth", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ idToken }),
-        });
-
-        const data = await response.json();
-
-        console.log("AUTH RESPONSE:", data);
+        const data = await apiPost("/auth", { idToken }, false);
 
         if (!data.token) {
             throw new Error("No backend token received");

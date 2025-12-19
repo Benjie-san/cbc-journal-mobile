@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiGet, apiPost, apiPut, apiDelete } from "../api/client";
 import { JournalEntry } from "../types/Journal";
 
@@ -17,6 +18,7 @@ interface JournalStore {
     softDelete: (id: string) => Promise<void>;
     restore: (id: string) => Promise<void>;
     permanentDelete: (id: string) => Promise<void>;
+    reset: () => void;
 }
 
 export const useJournalStore = create<JournalStore>((set, get) => ({
@@ -25,11 +27,21 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
     saving: false,
 
     loadJournals: async () => {
+        const token = await AsyncStorage.getItem("backendToken");
+        if (!token) {
+            set({ journals: [] });
+            return;
+        }
         const data = await apiGet("/journals");
         set({ journals: data });
     },
 
     loadTrash: async () => {
+    const token = await AsyncStorage.getItem("backendToken");
+    if (!token) {
+        set({ trash: [] });
+        return;
+    }
     const data = await apiGet("/journals/trash");
     set({ trash: data });
     },
@@ -94,5 +106,6 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
         trash: get().trash.filter(j => j._id !== id),
         });
     },
+    reset: () => set({ journals: [], trash: [], saving: false }),
     
 }));
