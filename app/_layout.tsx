@@ -87,8 +87,14 @@ export default function RootLayout() {
   }, []);
 
   if (!firebaseReady) {
+    console.log("Waiting for Firebase to initialize...");
     return null; // or splash screen
   }
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    <Stack
+      screenOptions={{ headerShown: false }}
+      initialRouteName="index"
+    />
+  );
 }
