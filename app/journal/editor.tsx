@@ -25,6 +25,8 @@ export default function JournalEditor(props: EditorProps) {
     const [scriptureRef, setScriptureRef] = useState(
         props.mode === "create" ? props.initialScriptureRef ?? "" : ""
     );
+    const [tagsText, setTagsText] = useState("");
+    const [tags, setTags] = useState<string[]>([]);
     const [content, setContent] = useState({
         question: "",
         observation: "",
@@ -39,6 +41,8 @@ export default function JournalEditor(props: EditorProps) {
 
         setTitle(existing.title ?? "");
         setScriptureRef(existing.scriptureRef ?? "");
+        setTags(existing.tags ?? []);
+        setTagsText((existing.tags ?? []).join(", "));
         setContent({
             question: existing.content.question ?? "",
             observation: existing.content.observation ?? "",
@@ -60,6 +64,7 @@ export default function JournalEditor(props: EditorProps) {
                 autosaveJournal(props.id, {
                     title,
                     scriptureRef,
+                    tags,
                     content: next,
                 });
             }
@@ -74,6 +79,7 @@ export default function JournalEditor(props: EditorProps) {
             autosaveJournal(props.id, {
                 title: value,
                 scriptureRef,
+                tags,
                 content,
             });
         }
@@ -85,6 +91,24 @@ export default function JournalEditor(props: EditorProps) {
             autosaveJournal(props.id, {
                 title,
                 scriptureRef: value,
+                tags,
+                content,
+            });
+        }
+    };
+
+    const onChangeTags = (value: string) => {
+        setTagsText(value);
+        const nextTags = value
+            .split(",")
+            .map(tag => tag.trim())
+            .filter(Boolean);
+        setTags(nextTags);
+        if (props.mode === "edit") {
+            autosaveJournal(props.id, {
+                title,
+                scriptureRef,
+                tags: nextTags,
                 content,
             });
         }
@@ -98,6 +122,7 @@ export default function JournalEditor(props: EditorProps) {
         const entry = await createJournal({
             title,
             scriptureRef,
+            tags,
             content,
         });
 
@@ -107,6 +132,7 @@ export default function JournalEditor(props: EditorProps) {
         await updateJournal(props.id, {
             title,
             scriptureRef,
+            tags,
             content,
         });
 
@@ -129,6 +155,14 @@ export default function JournalEditor(props: EditorProps) {
                 placeholder="Scripture reference"
                 value={scriptureRef}
                 onChangeText={onChangeScriptureRef}
+            />
+
+            <TextInput
+                style={styles.tags}
+                placeholder="Tags (comma-separated)"
+                value={tagsText}
+                onChangeText={onChangeTags}
+                autoCapitalize="none"
             />
 
             <TextInput
@@ -185,6 +219,13 @@ const styles = StyleSheet.create({
         padding: 8,
     },
     scriptureRef: {
+        borderWidth: 1,
+        borderColor: "#ccc",
+        borderRadius: 8,
+        padding: 10,
+        marginBottom: 12,
+    },
+    tags: {
         borderWidth: 1,
         borderColor: "#ccc",
         borderRadius: 8,

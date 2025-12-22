@@ -14,6 +14,7 @@ import { useRouter } from "expo-router";
 import { apiGet } from "../../src/api/client";
 import { useAuthStore } from "../../src/store/authStore";
 import { useJournalStore } from "../../src/store/journalStore";
+import { usePlanStore } from "../../src/store/planStore";
 
 type PlanDay = {
   _id: string;
@@ -50,6 +51,9 @@ export default function BRP() {
   const router = useRouter();
   const backendReady = useAuthStore((state) => state.backendReady);
   const { journals, loadJournals } = useJournalStore();
+  const selectedYear = usePlanStore((state) => state.selectedYear);
+  const setSelectedYear = usePlanStore((state) => state.setSelectedYear);
+  const hydratePlanYear = usePlanStore((state) => state.hydrate);
   const scrollRef = useRef<ScrollView | null>(null);
   const sectionOffsets = useRef<Record<string, number>>({});
   const pendingScrollMonth = useRef<string | null>(null);
@@ -58,7 +62,6 @@ export default function BRP() {
   const defaultYear = YEAR_OPTIONS.includes(currentYear)
     ? currentYear
     : YEAR_OPTIONS[YEAR_OPTIONS.length - 1];
-  const [selectedYear, setSelectedYear] = useState<number>(defaultYear);
   const [yearMenuOpen, setYearMenuOpen] = useState(false);
   const [planByMonth, setPlanByMonth] = useState<Record<string, PlanDay[]>>({});
   const [expandedMonths, setExpandedMonths] = useState<Record<string, boolean>>(
@@ -105,8 +108,9 @@ export default function BRP() {
 
   useFocusEffect(
     useCallback(() => {
+      hydratePlanYear(defaultYear, YEAR_OPTIONS);
       loadPlan();
-    }, [loadPlan])
+    }, [defaultYear, hydratePlanYear, loadPlan])
   );
 
   const completionRefs = useMemo(() => {
@@ -124,7 +128,32 @@ export default function BRP() {
     return map;
   }, [journals]);
 
+  const findLatestEntry = useCallback(
+    (verse: string) => {
+      const target = verse.trim().toLowerCase();
+      const matches = journals.filter(
+        (entry) =>
+          (entry.scriptureRef ?? "").trim().toLowerCase() === target
+      );
+      if (!matches.length) return null;
+      return matches.sort((a, b) => {
+        const aTime = new Date(a.updatedAt || a.createdAt).getTime();
+        const bTime = new Date(b.updatedAt || b.createdAt).getTime();
+        return bTime - aTime;
+      })[0];
+    },
+    [journals]
+  );
+
   const openEditor = (verse: string) => {
+    const existing = findLatestEntry(verse);
+    if (existing?._id) {
+      router.push({
+        pathname: "/journal/edit",
+        params: { id: existing._id },
+      });
+      return;
+    }
     router.push({
       pathname: "/journal/create",
       params: { scriptureRef: verse },
@@ -193,7 +222,7 @@ export default function BRP() {
           onPress={() => setYearMenuOpen((prev) => !prev)}
         >
           <Text style={styles.yearText}>{selectedYear}</Text>
-          <Ionicons name="chevron-down" size={16} color="#333" />
+          {/* <Ionicons name="chevron-down" size={16} color="#333" /> */}
         </Pressable>
       </View>
 
