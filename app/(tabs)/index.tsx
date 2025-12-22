@@ -248,8 +248,8 @@ export default function JournalListScreen() {
           </Text>
         }
         ListHeaderComponent={
-          <View style={styles.header}>
-            <View style={styles.todayCard}>
+          <View style={[styles.header]}>
+            <View style={[styles.todayCard,  { backgroundColor: "#fff" }]}>
               <View style={styles.todayRow}>
                 <View style={styles.todayInfo}>
                   <Text style={styles.todayTitle}>Today's Passage</Text>
@@ -285,9 +285,9 @@ export default function JournalListScreen() {
                 </Pressable>
               </View>
             </View>
-
+            <View style={{ paddingLeft: 10, paddingRight: 10, marginTop: 12 }}>
             <TextInput
-              style={styles.search}
+              style={[styles.search, {padding: 10}]}
               placeholder="Search entries"
               value={query}
               onChangeText={setQuery}
@@ -339,6 +339,7 @@ export default function JournalListScreen() {
                 })}
               </ScrollView>
             ) : null}
+            </View>
           </View>
         }
         renderItem={({ item }) => (
@@ -375,11 +376,10 @@ export default function JournalListScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
+  container: { flex: 1, },
   header: { marginBottom: 12, gap: 10 },
   todayCard: {
     padding: 14,
-    borderRadius: 12,
     backgroundColor: "#f2f2f2",
     gap: 8,
   },
@@ -415,7 +415,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     backgroundColor: "#fff",
   },
-  tagList: { gap: 8, paddingBottom: 4 },
+  tagList: { gap: 8, marginTop: 10,paddingBottom: 4},
   tagChip: {
     paddingHorizontal: 12,
     paddingVertical: 6,
