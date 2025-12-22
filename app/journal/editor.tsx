@@ -1,11 +1,11 @@
 import { useEffect, useState, useRef } from "react";
-import { View, TextInput, Button, ScrollView, StyleSheet } from "react-native";
+import { TextInput, Button, ScrollView, StyleSheet } from "react-native";
 import { useJournalStore } from "../../src/store/journalStore";
 import { JournalEntry } from "../../src/types/Journal";
 import { useRouter } from "expo-router";
 
 type EditorProps =
-    | { mode: "create" }
+    | { mode: "create"; initialScriptureRef?: string }
     | { mode: "edit"; id: string };
 
 export default function JournalEditor(props: EditorProps) {
@@ -22,6 +22,9 @@ export default function JournalEditor(props: EditorProps) {
 
     // LOCAL STATES
     const [title, setTitle] = useState("");
+    const [scriptureRef, setScriptureRef] = useState(
+        props.mode === "create" ? props.initialScriptureRef ?? "" : ""
+    );
     const [content, setContent] = useState({
         question: "",
         observation: "",
@@ -35,6 +38,7 @@ export default function JournalEditor(props: EditorProps) {
         if (initialized.current) return;
 
         setTitle(existing.title ?? "");
+        setScriptureRef(existing.scriptureRef ?? "");
         setContent({
             question: existing.content.question ?? "",
             observation: existing.content.observation ?? "",
@@ -46,20 +50,43 @@ export default function JournalEditor(props: EditorProps) {
     }, [existing?._id]);
 
     const onChangeField = (field: keyof typeof content, value: string) => {
-        setContent(prev => ({
-            ...prev,
-            [field]: value,
-        }));
+        setContent(prev => {
+            const next = {
+                ...prev,
+                [field]: value,
+            };
 
-        // Autosave ONLY in edit mode
-        if (props.mode === "edit") {
-        autosaveJournal(props.id, {
-            title,
-            content: {
-            ...content,
-            [field]: value,
-            },
+            if (props.mode === "edit") {
+                autosaveJournal(props.id, {
+                    title,
+                    scriptureRef,
+                    content: next,
+                });
+            }
+
+            return next;
         });
+    };
+
+    const onChangeTitle = (value: string) => {
+        setTitle(value);
+        if (props.mode === "edit") {
+            autosaveJournal(props.id, {
+                title: value,
+                scriptureRef,
+                content,
+            });
+        }
+    };
+
+    const onChangeScriptureRef = (value: string) => {
+        setScriptureRef(value);
+        if (props.mode === "edit") {
+            autosaveJournal(props.id, {
+                title,
+                scriptureRef: value,
+                content,
+            });
         }
     };
 
@@ -70,6 +97,7 @@ export default function JournalEditor(props: EditorProps) {
         if (props.mode === "create") {
         const entry = await createJournal({
             title,
+            scriptureRef,
             content,
         });
 
@@ -78,6 +106,7 @@ export default function JournalEditor(props: EditorProps) {
         } else {
         await updateJournal(props.id, {
             title,
+            scriptureRef,
             content,
         });
 
@@ -92,7 +121,14 @@ export default function JournalEditor(props: EditorProps) {
                 style={styles.title}
                 placeholder="Title"
                 value={title}
-                onChangeText={setTitle}
+                onChangeText={onChangeTitle}
+            />
+
+            <TextInput
+                style={styles.scriptureRef}
+                placeholder="Scripture reference"
+                value={scriptureRef}
+                onChangeText={onChangeScriptureRef}
             />
 
             <TextInput
@@ -147,6 +183,13 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         marginBottom: 16,
         padding: 8,
+    },
+    scriptureRef: {
+        borderWidth: 1,
+        borderColor: "#ccc",
+        borderRadius: 8,
+        padding: 10,
+        marginBottom: 12,
     },
     textarea: {
         borderWidth: 1,

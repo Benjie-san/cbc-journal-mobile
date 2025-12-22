@@ -1,5 +1,6 @@
 import { useEffect } from "react";
-import { View, Text, FlatList, Pressable, StyleSheet } from "react-native";
+import { Alert, View, Text, FlatList, Pressable, StyleSheet } from "react-native";
+import * as Haptics from "expo-haptics";
 import { useJournalStore } from "../../src/store/journalStore";
 import { useRouter } from "expo-router";
 import { useAuthStore } from "@/src/store/authStore";
@@ -19,6 +20,29 @@ export default function JournalListScreen() {
   loadJournals();
   }, [backendReady]);
 
+  const handleOpen = async (id: string) => {
+    try {
+      await Haptics.selectionAsync();
+    } catch {
+      // ignore haptics errors
+    }
+    router.push({
+      pathname: "/journal/edit",
+      params: { id },
+    });
+  };
+
+  const confirmSoftDelete = (id: string) => {
+    Alert.alert(
+      "Move to trash?",
+      "You can restore this entry later.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Move", style: "destructive", onPress: () => softDelete(id) },
+      ]
+    );
+  };
+
   return (
     <View style={styles.container}>
       <FlatList
@@ -31,13 +55,8 @@ export default function JournalListScreen() {
         renderItem={({ item }) => (
           <Pressable
             style={styles.card}
-            onPress={() =>
-              router.push({
-                pathname: "/journal/edit",
-                params: { id: item._id },
-              })
-            }
-            onLongPress={() => softDelete(item._id)}
+            onPress={() => handleOpen(item._id)}
+            onLongPress={() => confirmSoftDelete(item._id)}
           >
             <Text style={styles.title}>
               {item.title || "Untitled Entry"}
