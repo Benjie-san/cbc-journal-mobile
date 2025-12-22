@@ -16,6 +16,8 @@ import { useAuthStore } from "@/src/store/authStore";
 import { useFocusEffect } from "@react-navigation/native";
 import { apiGet } from "../../src/api/client";
 import { usePlanStore } from "../../src/store/planStore";
+import { Ionicons } from "@expo/vector-icons";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const PLAN_YEARS = [2024, 2025];
 const MONTHS = [
@@ -203,13 +205,17 @@ export default function JournalListScreen() {
     });
   };
 
+  const todayEntry = useMemo(() => {
+    if (!todayPassage?.verse) return null;
+    return findLatestEntry(todayPassage.verse);
+  }, [findLatestEntry, todayPassage?.verse]);
+
   const handleTodayOpen = () => {
     if (!todayPassage?.verse) return;
-    const existing = findLatestEntry(todayPassage.verse);
-    if (existing?._id) {
+    if (todayEntry?._id) {
       router.push({
         pathname: "/journal/edit",
-        params: { id: existing._id },
+        params: { id: todayEntry._id },
       });
       return;
     }
@@ -231,7 +237,7 @@ export default function JournalListScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <FlatList
         data={filteredJournals}
         keyExtractor={(item) => item._id}
@@ -245,32 +251,39 @@ export default function JournalListScreen() {
           <View style={styles.header}>
             <View style={styles.todayCard}>
               <View style={styles.todayRow}>
-                <Text style={styles.todayTitle}>Today</Text>
-                {todayPassage ? (
-                  <Text style={styles.todayDate}>
-                    {todayPassage.month} {todayPassage.date}, {todayPassage.year}
+                <View style={styles.todayInfo}>
+                  <Text style={styles.todayTitle}>Today's Passage</Text>
+                  {todayLoading ? (
+                    <Text style={styles.todaySubtle}>Loading passage...</Text>
+                  ) : todayError ? (
+                    <Text style={styles.todayError}>{todayError}</Text>
+                  ) : todayPassage ? (
+                    <>
+                      <Text style={styles.todayVerse}>{todayPassage.verse}</Text>
+                      <Text style={styles.todayDate}>
+                        {todayPassage.month} {todayPassage.date}, {todayPassage.year}
+                      </Text>
+                    </>
+                  ) : (
+                    <Text style={styles.todaySubtle}>No passage available.</Text>
+                  )}
+                </View>
+                <Pressable
+                  style={[
+                    styles.todayButton,
+                    !todayPassage && styles.todayButtonDisabled,
+                  ]}
+                  onPress={handleTodayOpen}
+                  disabled={!todayPassage}
+                >
+                  {todayEntry ? (
+                    <Ionicons name="checkmark" size={16} color="#fff" />
+                  ) : null}
+                  <Text style={styles.todayButtonText}>
+                    {todayEntry ? "Entry Added" : "Add Entry"}
                   </Text>
-                ) : null}
+                </Pressable>
               </View>
-              {todayLoading ? (
-                <Text style={styles.todaySubtle}>Loading passage...</Text>
-              ) : todayError ? (
-                <Text style={styles.todayError}>{todayError}</Text>
-              ) : todayPassage ? (
-                <Text style={styles.todayVerse}>{todayPassage.verse}</Text>
-              ) : (
-                <Text style={styles.todaySubtle}>No passage available.</Text>
-              )}
-              <Pressable
-                style={[
-                  styles.todayButton,
-                  !todayPassage && styles.todayButtonDisabled,
-                ]}
-                onPress={handleTodayOpen}
-                disabled={!todayPassage}
-              >
-                <Text style={styles.todayButtonText}>Open Journal</Text>
-              </Pressable>
             </View>
 
             <TextInput
@@ -357,7 +370,7 @@ export default function JournalListScreen() {
       >
         <Text style={styles.fabText}>＋</Text>
       </Pressable>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -374,14 +387,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    gap: 12,
   },
+  todayInfo: { flex: 1 },
   todayTitle: { fontSize: 16, fontWeight: "600", color: "#111" },
-  todayDate: { fontSize: 12, color: "#666" },
-  todayVerse: { fontSize: 14, color: "#222" },
-  todaySubtle: { fontSize: 13, color: "#777" },
-  todayError: { fontSize: 13, color: "#d64545" },
+  todayVerse: { fontSize: 14, color: "#222", marginTop: 4 },
+  todayDate: { fontSize: 12, color: "#666", marginTop: 2 },
+  todaySubtle: { fontSize: 13, color: "#777", marginTop: 4 },
+  todayError: { fontSize: 13, color: "#d64545", marginTop: 4 },
   todayButton: {
     alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 10,

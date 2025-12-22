@@ -15,6 +15,7 @@ import { apiGet } from "../../src/api/client";
 import { useAuthStore } from "../../src/store/authStore";
 import { useJournalStore } from "../../src/store/journalStore";
 import { usePlanStore } from "../../src/store/planStore";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 type PlanDay = {
   _id: string;
@@ -214,7 +215,7 @@ export default function BRP() {
   }, [backendReady, planByMonth, selectedYear, scrollToMonth]);
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Bible Reading Plan</Text>
         <Pressable
@@ -337,7 +338,7 @@ export default function BRP() {
           })}
         </ScrollView>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 

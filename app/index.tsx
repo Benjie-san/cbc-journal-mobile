@@ -1,8 +1,9 @@
-import { ActivityIndicator, Image, View } from "react-native";
+import { ActivityIndicator, Image } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function Bootstrap() {
   return (
-    <View
+    <SafeAreaView
       style={{
         flex: 1,
         alignItems: "center",
@@ -16,6 +17,6 @@ export default function Bootstrap() {
         resizeMode="contain"
       />
       <ActivityIndicator size="small" />
-    </View>
+    </SafeAreaView>
   );
 }

@@ -10,6 +10,7 @@ import {
 import { useFocusEffect } from "@react-navigation/native";
 import { useJournalStore } from "../../../src/store/journalStore";
 import { useAuthStore } from "../../../src/store/authStore";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function TrashScreen() {
   const backendReady = useAuthStore((state) => state.backendReady);
@@ -73,7 +74,7 @@ export default function TrashScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <FlatList
         data={trash}
         keyExtractor={(item) => item._id}
@@ -107,7 +108,7 @@ export default function TrashScreen() {
           );
         }}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 

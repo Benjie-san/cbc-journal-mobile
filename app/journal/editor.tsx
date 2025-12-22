@@ -3,6 +3,7 @@ import { TextInput, Button, ScrollView, StyleSheet } from "react-native";
 import { useJournalStore } from "../../src/store/journalStore";
 import { JournalEntry } from "../../src/types/Journal";
 import { useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 type EditorProps =
     | { mode: "create"; initialScriptureRef?: string }
@@ -141,7 +142,7 @@ export default function JournalEditor(props: EditorProps) {
     };
 
     return (
-        <>
+        <SafeAreaView style={styles.safeArea}>
         <ScrollView contentContainerStyle={styles.container}>
             <TextInput
                 style={styles.title}
@@ -204,12 +205,13 @@ export default function JournalEditor(props: EditorProps) {
             />
             : null }
         </ScrollView>
-        </>
+        </SafeAreaView>
     );
 }
 
 
 const styles = StyleSheet.create({
+    safeArea: { flex: 1 },
     container: { padding: 16 },
     title: {
         fontSize: 18,

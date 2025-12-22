@@ -6,6 +6,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { signOut } from "firebase/auth";
 import { auth } from "../../../src/firebase/config";
 import { useJournalStore } from "../../../src/store/journalStore";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function Settings() {
   const resetStore = useJournalStore((state) => state.reset);
@@ -22,7 +23,7 @@ export default function Settings() {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <Pressable
         style={styles.row}
         onPress={() => router.push("/(tabs)/settings/trash")}
@@ -35,7 +36,7 @@ export default function Settings() {
       </Pressable>
 
       <Button title="Log out" onPress={handleLogout} />
-    </View>
+    </SafeAreaView>
   );
 }
 

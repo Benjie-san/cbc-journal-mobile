@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Stack, router } from "expo-router";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { auth } from "../src/firebase/config";
@@ -92,9 +93,11 @@ export default function RootLayout() {
   }
 
   return (
-    <Stack
-      screenOptions={{ headerShown: false }}
-      initialRouteName="index"
-    />
+    <SafeAreaProvider>
+      <Stack
+        screenOptions={{ headerShown: false }}
+        initialRouteName="index"
+      />
+    </SafeAreaProvider>
   );
 }

@@ -3,6 +3,7 @@ import { View, Text, TextInput, Button, Alert } from "react-native";
 import { RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 import { auth } from "../../src/firebase/config"; // ensure this exports firebase auth instance
 import { router } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function PhoneAuthScreen() {
     const recaptchaVerifierRef = useRef<any>(null);
@@ -46,7 +47,7 @@ export default function PhoneAuthScreen() {
     };
 
     return (
-        <View style={{ padding: 20 }}>
+        <SafeAreaView style={{ flex: 1, padding: 20 }}>
             {/* Hidden recaptcha container */}
             <View id="recaptcha-container"></View>
 
@@ -73,6 +74,6 @@ export default function PhoneAuthScreen() {
                     <Button title="Verify" onPress={verifyCode} />
                 </>
             )}
-        </View>
+        </SafeAreaView>
     );
 }
