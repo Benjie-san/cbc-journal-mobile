@@ -285,9 +285,9 @@ export default function JournalListScreen() {
                 </Pressable>
               </View>
             </View>
-            <View style={{ paddingLeft: 10, paddingRight: 10, marginTop: 12 }}>
+            <View style={{ paddingLeft: 10, paddingRight: 10, marginTop: 5 }}>
             <TextInput
-              style={[styles.search, {padding: 10}]}
+              style={[styles.search,]}
               placeholder="Search entries"
               value={query}
               onChangeText={setQuery}

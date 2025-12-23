@@ -22,13 +22,44 @@ async function getHeaders(withAuth: boolean) {
   return { "Content-Type": "application/json" };
 }
 
+async function parseBody(res: Response) {
+  const text = await res.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
+function buildError(res: Response, data: any) {
+  const message =
+    typeof data === "string"
+      ? data
+      : data?.error || data?.message || res.statusText;
+  const err = new Error(message || "Request failed") as Error & {
+    status?: number;
+    data?: any;
+  };
+  err.status = res.status;
+  err.data = data;
+  return err;
+}
+
+async function handleResponse(res: Response) {
+  const data = await parseBody(res);
+  if (!res.ok) {
+    throw buildError(res, data);
+  }
+  return data;
+}
+
 export async function apiGet(path: string, withAuth = true) {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: await getHeaders(withAuth),
   });
 
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  return handleResponse(res);
 }
 
 export async function apiPost(path: string, body: any, withAuth = true) {
@@ -38,8 +69,7 @@ export async function apiPost(path: string, body: any, withAuth = true) {
     body: JSON.stringify(body),
   });
 
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  return handleResponse(res);
 }
 
 export async function apiPut(path: string, body: any, withAuth = true) {
@@ -49,8 +79,7 @@ export async function apiPut(path: string, body: any, withAuth = true) {
     body: JSON.stringify(body),
   });
 
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  return handleResponse(res);
 }
 
 export async function apiDelete(path: string, withAuth = true) {
@@ -59,6 +88,5 @@ export async function apiDelete(path: string, withAuth = true) {
     headers: await getHeaders(withAuth),
   });
 
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  return handleResponse(res);
 }

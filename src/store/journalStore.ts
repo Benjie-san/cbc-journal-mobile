@@ -6,19 +6,38 @@ import { JournalEntry } from "../types/Journal";
 
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
 
+type JournalConflict = {
+    id: string;
+    serverVersion: number;
+    serverEntry: {
+        title?: string;
+        scriptureRef?: string;
+        content: JournalEntry["content"];
+        tags?: string[];
+        updatedAt?: string;
+        createdAt?: string;
+    };
+    clientPayload: Partial<JournalEntry>;
+};
+
 interface JournalStore {
     journals: JournalEntry[];
     trash: JournalEntry[];
     saving: boolean;
+    conflict: JournalConflict | null;
 
     loadJournals: () => Promise<void>;
     loadTrash: () => Promise<void>;
     createJournal: (payload: Partial<JournalEntry>) => Promise<JournalEntry>;
-    updateJournal: (id: string, payload: Partial<JournalEntry>) => Promise<void>;
+    updateJournal: (id: string, payload: Partial<JournalEntry>) => Promise<boolean>;
     autosaveJournal: (id: string, payload: Partial<JournalEntry>, delay?:number) => void;
     softDelete: (id: string) => Promise<void>;
     restore: (id: string) => Promise<void>;
     permanentDelete: (id: string) => Promise<void>;
+    clearConflict: () => void;
+    applyServerEntry: (id: string, serverEntry: JournalConflict["serverEntry"], serverVersion: number) => void;
+    resolveConflictKeepMine: (id: string, payload: Partial<JournalEntry>, serverVersion: number) => Promise<void>;
+    replaceJournal: (entry: JournalEntry) => void;
     reset: () => void;
 }
 
@@ -40,6 +59,7 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
     journals: [],
     trash: [],
     saving: false,
+    conflict: null,
 
     loadJournals: async () => {
         const token = await getOrCreateBackendToken();
@@ -79,21 +99,39 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
 
     updateJournal: async (id, payload) => {
         const journal = get().journals.find(j => j._id === id);
-        if (!journal) return;
+        if (!journal) return false;
 
         set({ saving: true });
 
-        const updated = await apiPut(`/journals/${id}`, {
-            ...payload,
-            baseVersion: journal.version,
-        });
+        try {
+            const updated = await apiPut(`/journals/${id}`, {
+                ...payload,
+                baseVersion: journal.version,
+            });
 
-        set({
-            journals: get().journals.map(j =>
-            j._id === id ? updated : j
-            ),
-            saving: false,
-        });
+            set({
+                journals: get().journals.map(j =>
+                j._id === id ? updated : j
+                ),
+                saving: false,
+            });
+            return true;
+        } catch (err: any) {
+            if (err?.status === 409 && err?.data?.error === "VERSION_CONFLICT") {
+                set({
+                    saving: false,
+                    conflict: {
+                        id,
+                        serverVersion: err.data.serverVersion,
+                        serverEntry: err.data.serverEntry,
+                        clientPayload: payload,
+                    },
+                });
+                return false;
+            }
+            set({ saving: false });
+            throw err;
+        }
     },
 
     autosaveJournal: (id, payload, delay = 1200) => {
@@ -103,6 +141,7 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
 
         autosaveTimer = setTimeout(async () => {
         try {
+            if (get().conflict?.id === id) return;
             await get().updateJournal(id, payload);
         } catch (err) {
             console.error("Autosave failed:", err);
@@ -131,6 +170,52 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
         trash: get().trash.filter(j => j._id !== id),
         });
     },
-    reset: () => set({ journals: [], trash: [], saving: false }),
+    clearConflict: () => set({ conflict: null }),
+    applyServerEntry: (id, serverEntry, serverVersion) => {
+        set({
+            conflict: null,
+            journals: get().journals.map(j =>
+                j._id === id
+                ? {
+                    ...j,
+                    title: serverEntry.title ?? j.title,
+                    scriptureRef: serverEntry.scriptureRef ?? j.scriptureRef,
+                    content: serverEntry.content ?? j.content,
+                    tags: serverEntry.tags ?? j.tags,
+                    version: serverVersion,
+                    updatedAt: serverEntry.updatedAt ?? j.updatedAt,
+                    createdAt: serverEntry.createdAt ?? j.createdAt,
+                }
+                : j
+            ),
+        });
+    },
+    resolveConflictKeepMine: async (id, payload, serverVersion) => {
+        set({ saving: true });
+        try {
+            const updated = await apiPut(`/journals/${id}`, {
+                ...payload,
+                baseVersion: serverVersion,
+            });
+            set({
+                journals: get().journals.map(j =>
+                j._id === id ? updated : j
+                ),
+                saving: false,
+                conflict: null,
+            });
+        } catch (err) {
+            set({ saving: false });
+            throw err;
+        }
+    },
+    replaceJournal: (entry) => {
+        set({
+            journals: get().journals.map(j =>
+                j._id === entry._id ? entry : j
+            ),
+        });
+    },
+    reset: () => set({ journals: [], trash: [], saving: false, conflict: null }),
     
 }));
