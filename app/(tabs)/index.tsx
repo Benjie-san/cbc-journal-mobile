@@ -13,12 +13,13 @@ import {
 import * as Haptics from "expo-haptics";
 import { useJournalStore } from "../../src/store/journalStore";
 import { useRouter } from "expo-router";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useTheme } from "@react-navigation/native";
 import { apiGet } from "../../src/api/client";
 import { usePlanStore } from "../../src/store/planStore";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getPlanDaysByYear, savePlanDays } from "../../src/db/localDb";
+import { ACCENT_COLOR } from "../../src/theme";
 
 const PLAN_YEARS = [2024, 2025];
 const MONTHS = [
@@ -39,6 +40,7 @@ const MONTHS = [
 
 export default function JournalListScreen() {
   const router = useRouter();
+  const { colors, dark: isDark } = useTheme();
   const {
     journals,
     loadJournals,
@@ -73,6 +75,11 @@ export default function JournalListScreen() {
   const statusOpacity = useRef(new Animated.Value(0)).current;
   const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const statusCacheRef = useRef<string | null>(null);
+  const subtleText = isDark ? "#b9c0cf" : "#555";
+  const mutedText = isDark ? "#8e95a6" : "#777";
+  const chipBackground = isDark ? "#232936" : "#fff";
+  const inputBackground = isDark ? "#1a1f2b" : "#fff";
+  const inputBorder = isDark ? "#2f3645" : "#ccc";
 
   useFocusEffect(
     useCallback(() => {
@@ -260,21 +267,27 @@ export default function JournalListScreen() {
     });
   };
 
-  const formatStatus = (entry: typeof journals[number]) => {
+  const getStatusMeta = (entry: typeof journals[number]) => {
+    const danger = isDark ? "#f97066" : "#a34242";
+    const conflict = isDark ? "#f97066" : "#d64545";
     switch (entry.syncStatus) {
       case "pending_create":
       case "pending_update":
-        return "Saved locally";
+        return { icon: "server-outline", color: subtleText, text: "" };
       case "pending_delete":
-        return "Pending delete";
+        return { icon: "trash-outline", color: danger, text: "Pending delete" };
       case "pending_restore":
-        return "Pending restore";
+        return { icon: "refresh-outline", color: mutedText, text: "Pending restore" };
       case "pending_permanent_delete":
-        return "Pending removal";
+        return {
+          icon: "trash-bin-outline",
+          color: danger,
+          text: "Pending removal",
+        };
       case "conflict":
-        return "Conflict";
+        return { icon: "alert-circle-outline", color: conflict, text: "Conflict" };
       default:
-        return "Synced";
+        return { icon: "cloud-done-outline", color: ACCENT_COLOR, text: "" };
     }
   };
 
@@ -376,8 +389,24 @@ export default function JournalListScreen() {
     );
   };
 
+  const statusBackground =
+    statusKind === "error"
+      ? isDark
+        ? "#3a1f1f"
+        : "#fdecea"
+      : statusKind === "offline"
+      ? isDark
+        ? "#1c1f27"
+        : "#f2f2f2"
+      : isDark
+      ? "#1c2333"
+      : "#eef2ff";
+
+  const statusTextColor =
+    statusKind === "error" ? (isDark ? "#f97066" : "#b42318") : colors.text;
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <FlatList
         data={filteredJournals}
         keyExtractor={(item) => item._id}
@@ -385,29 +414,37 @@ export default function JournalListScreen() {
         refreshing={syncing}
         onRefresh={syncJournals}
         ListEmptyComponent={
-          <Text style={styles.empty}>
+          <Text style={[styles.empty, { color: mutedText }]}>
             {journals.length ? "No matching entries." : "No journal entries yet."}
           </Text>
         }
         ListHeaderComponent={
           <View style={[styles.header]}>
-            <View style={[styles.todayCard,  { backgroundColor: "#fff" }]}>
+            <View style={[styles.todayCard, { backgroundColor: colors.card }]}>
               <View style={styles.todayRow}>
                 <View style={styles.todayInfo}>
-                  <Text style={styles.todayTitle}>Today's Passage</Text>
+                  <Text style={[styles.todayTitle, { color: colors.text }]}>
+                    Today's Passage
+                  </Text>
                   {todayLoading ? (
-                    <Text style={styles.todaySubtle}>Loading passage...</Text>
+                    <Text style={[styles.todaySubtle, { color: mutedText }]}>
+                      Loading passage...
+                    </Text>
                   ) : todayError ? (
                     <Text style={styles.todayError}>{todayError}</Text>
                   ) : todayPassage ? (
                     <>
-                      <Text style={styles.todayVerse}>{todayPassage.verse}</Text>
-                      <Text style={styles.todayDate}>
+                      <Text style={[styles.todayVerse, { color: colors.text }]}>
+                        {todayPassage.verse}
+                      </Text>
+                      <Text style={[styles.todayDate, { color: mutedText }]}>
                         {todayPassage.month} {todayPassage.date}, {todayPassage.year}
                       </Text>
                     </>
                   ) : (
-                    <Text style={styles.todaySubtle}>No passage available.</Text>
+                    <Text style={[styles.todaySubtle, { color: mutedText }]}>
+                      No passage available.
+                    </Text>
                   )}
                 </View>
                 <Pressable
@@ -431,8 +468,7 @@ export default function JournalListScreen() {
               <Animated.View
                 style={[
                   styles.statusBanner,
-                  statusKind === "offline" && styles.statusBannerOffline,
-                  statusKind === "error" && styles.statusBannerError,
+                  { backgroundColor: statusBackground },
                   {
                     transform: [{ translateY: statusTranslate }],
                     opacity: statusOpacity,
@@ -442,7 +478,7 @@ export default function JournalListScreen() {
                 <Text
                   style={[
                     styles.statusBannerText,
-                    statusKind === "error" && styles.statusBannerTextError,
+                    { color: statusTextColor },
                   ]}
                 >
                   {statusText}
@@ -451,8 +487,16 @@ export default function JournalListScreen() {
             ) : null}
             <View style={{ paddingLeft: 10, paddingRight: 10, marginTop: 5 }}>
             <TextInput
-              style={[styles.search,]}
+              style={[
+                styles.search,
+                {
+                  backgroundColor: inputBackground,
+                  borderColor: inputBorder,
+                  color: colors.text,
+                },
+              ]}
               placeholder="Search entries"
+              placeholderTextColor={mutedText}
               value={query}
               onChangeText={setQuery}
               autoCapitalize="none"
@@ -466,6 +510,7 @@ export default function JournalListScreen() {
                 <Pressable
                   style={[
                     styles.tagChip,
+                    { backgroundColor: isDark ? "#1f2430" : "#f2f2f2" },
                     selectedTags.length === 0 && styles.tagChipActive,
                   ]}
                   onPress={clearTags}
@@ -473,6 +518,7 @@ export default function JournalListScreen() {
                   <Text
                     style={[
                       styles.tagText,
+                      { color: isDark ? "#e0e6f5" : "#333" },
                       selectedTags.length === 0 && styles.tagTextActive,
                     ]}
                   >
@@ -486,6 +532,7 @@ export default function JournalListScreen() {
                       key={tag}
                       style={[
                         styles.tagChip,
+                        { backgroundColor: isDark ? "#1f2430" : "#f2f2f2" },
                         active && styles.tagChipActive,
                       ]}
                       onPress={() => toggleTag(tag)}
@@ -493,6 +540,7 @@ export default function JournalListScreen() {
                       <Text
                         style={[
                           styles.tagText,
+                          { color: isDark ? "#e0e6f5" : "#333" },
                           active && styles.tagTextActive,
                         ]}
                       >
@@ -508,28 +556,46 @@ export default function JournalListScreen() {
         }
         renderItem={({ item }) => (
           <Pressable
-            style={styles.card}
+            style={[styles.card, { backgroundColor: colors.card }]}
             onPress={() => handleOpen(item._id)}
             onLongPress={() => confirmSoftDelete(item._id)}
           >
-            <Text style={styles.title}>
+            <View style={[styles.statusChipFloating, { backgroundColor: chipBackground }]}>
+              {(() => {
+                const meta = getStatusMeta(item);
+                return (
+                  <>
+                    <Ionicons
+                      name={meta.icon as any}
+                      size={14}
+                      color={meta.color}
+                    />
+                    {meta.text ? (
+                      <Text style={[styles.syncStatus, { color: meta.color }]}>
+                        {meta.text}
+                      </Text>
+                    ) : null}
+                  </>
+                );
+              })()}
+            </View>
+            <Text style={[styles.title, { color: colors.text }]}>
               {item.title || "Untitled Entry"}
             </Text>
             {item.scriptureRef ? (
-              <Text style={styles.scriptureRef}>{item.scriptureRef}</Text>
+              <Text style={[styles.scriptureRef, { color: subtleText }]}>
+                {item.scriptureRef}
+              </Text>
             ) : null}
             {item.tags?.length ? (
               <Text style={styles.tagsLine}>{item.tags.join(", ")}</Text>
             ) : null}
-            <View style={styles.metaRow}>
-              <Text style={styles.syncStatus}>{formatStatus(item)}</Text>
-              {item.lastSavedAt ? (
-                <Text style={styles.lastSavedAt}>
-                  {formatTime(item.lastSavedAt)}
-                </Text>
-              ) : null}
-            </View>
-            <Text style={styles.preview}>
+            {item.lastSavedAt ? (
+              <Text style={[styles.lastSavedAt, { color: mutedText }]}>
+                {formatTime(item.lastSavedAt)}
+              </Text>
+            ) : null}
+            <Text style={[styles.preview, { color: subtleText }]}>
               {item.content?.observation?.slice(0, 80) || ""}
             </Text>
           </Pressable>
@@ -552,7 +618,6 @@ const styles = StyleSheet.create({
   header: { marginBottom: 12, gap: 10 },
   todayCard: {
     padding: 14,
-    backgroundColor: "#f2f2f2",
     gap: 8,
   },
   todayRow: {
@@ -562,10 +627,10 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   todayInfo: { flex: 1 },
-  todayTitle: { fontSize: 16, fontWeight: "600", color: "#111" },
-  todayVerse: { fontSize: 14, color: "#222", marginTop: 4 },
-  todayDate: { fontSize: 12, color: "#666", marginTop: 2 },
-  todaySubtle: { fontSize: 13, color: "#777", marginTop: 4 },
+  todayTitle: { fontSize: 16, fontWeight: "600" },
+  todayVerse: { fontSize: 14, marginTop: 4 },
+  todayDate: { fontSize: 12, marginTop: 2 },
+  todaySubtle: { fontSize: 13, marginTop: 4 },
   todayError: { fontSize: 13, color: "#d64545", marginTop: 4 },
   todayButton: {
     alignSelf: "flex-start",
@@ -575,7 +640,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 10,
-    backgroundColor: "#2f6fed",
+    backgroundColor: ACCENT_COLOR,
   },
   todayButtonDisabled: { backgroundColor: "#9db5ee" },
   todayButtonText: { color: "#fff", fontWeight: "600" },
@@ -584,54 +649,52 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: "#eef2ff",
     marginTop: 6,
   },
-  statusBannerOffline: { backgroundColor: "#f2f2f2" },
-  statusBannerError: { backgroundColor: "#fdecea" },
   statusBannerText: {
-    color: "#333",
     fontSize: 12,
     fontWeight: "600",
     textAlign: "center",
   },
-  statusBannerTextError: { color: "#b42318" },
   search: {
     borderWidth: 1,
-    borderColor: "#ccc",
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: "#fff",
   },
   tagList: { gap: 8, marginTop: 10,paddingBottom: 4},
   tagChip: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: "#f2f2f2",
   },
-  tagChipActive: { backgroundColor: "#2f6fed" },
-  tagText: { color: "#333", fontSize: 12, fontWeight: "600" },
+  tagChipActive: { backgroundColor: ACCENT_COLOR },
+  tagText: { fontSize: 12, fontWeight: "600" },
   tagTextActive: { color: "#fff" },
   card: {
     padding: 16,
     borderRadius: 12,
-    backgroundColor: "#f2f2f2",
     marginBottom: 12,
+    position: "relative",
   },
   title: { fontSize: 16, fontWeight: "600" },
-  scriptureRef: { marginTop: 6, color: "#555" },
-  tagsLine: { marginTop: 4, color: "#2f6fed", fontSize: 12 },
-  metaRow: {
+  scriptureRef: { marginTop: 6 },
+  tagsLine: { marginTop: 4, color: ACCENT_COLOR, fontSize: 12 },
+  statusChipFloating: {
+    position: "absolute",
+    top: 10,
+    right: 10,
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 6,
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
   },
   syncStatus: { fontSize: 12, color: "#555" },
-  lastSavedAt: { fontSize: 12, color: "#777" },
-  preview: { marginTop: 6, color: "#555" },
-  empty: { textAlign: "center", marginTop: 40, color: "#888" },
+  lastSavedAt: { fontSize: 12, marginTop: 6, alignSelf: "flex-end" },
+  preview: { marginTop: 6 },
+  empty: { textAlign: "center", marginTop: 40 },
   fab: {
     position: "absolute",
     right: 20,
@@ -639,7 +702,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: "#007AFF",
+    backgroundColor: ACCENT_COLOR,
     justifyContent: "center",
     alignItems: "center",
   },

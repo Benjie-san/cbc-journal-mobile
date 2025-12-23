@@ -7,6 +7,9 @@ import { auth } from "../src/firebase/config";
 import { apiGet, apiPost } from "../src/api/client";
 import { useJournalStore } from "../src/store/journalStore";
 import { useAuthStore } from "../src/store/authStore";
+import { ThemeProvider } from "@react-navigation/native";
+import { darkTheme, lightTheme } from "../src/theme";
+import { useThemeStore } from "../src/store/themeStore";
 
 export default function RootLayout() {
   const [firebaseReady, setFirebaseReady] = useState(false);
@@ -15,10 +18,16 @@ export default function RootLayout() {
   const setBackendReady = useAuthStore((state) => state.setBackendReady);
   const setUser = useAuthStore((state) => state.setUser);
   const resetAuth = useAuthStore((state) => state.reset);
+  const theme = useThemeStore((state) => state.theme);
+  const hydrateTheme = useThemeStore((state) => state.hydrate);
   const segments = useSegments();
   const inAuthGroup = segments[0] === "(auth)";
   const isRoot = segments.length === 0 || segments[0] === "index";
   const OFFLINE_TIMEOUT_MS = 1500;
+
+  useEffect(() => {
+    hydrateTheme();
+  }, [hydrateTheme]);
 
   useEffect(() => {
     const exchangeBackendToken = async (firebaseUser: User) => {
@@ -113,12 +122,16 @@ export default function RootLayout() {
     return unsub;
   }, [inAuthGroup, isRoot]);
 
+  const navTheme = theme === "dark" ? darkTheme : lightTheme;
+
   return (
     <SafeAreaProvider>
-      <Stack
-        screenOptions={{ headerShown: false }}
-        initialRouteName="index"
-      />
+      <ThemeProvider value={navTheme}>
+        <Stack
+          screenOptions={{ headerShown: false }}
+          initialRouteName="index"
+        />
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }

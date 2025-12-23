@@ -16,6 +16,7 @@ import { JournalEntry } from "../../src/types/Journal";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { apiGet, apiPost } from "../../src/api/client";
+import { ACCENT_COLOR } from "../../src/theme";
 
 type EditorProps =
     | { mode: "create"; initialScriptureRef?: string }
@@ -591,7 +592,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 10,
         paddingVertical: 6,
         borderRadius: 8,
-        backgroundColor: "#2f6fed",
+        backgroundColor: ACCENT_COLOR,
     },
     versionActionDisabled: {
         backgroundColor: "#9db5ee",
@@ -602,7 +603,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         paddingVertical: 6,
     },
-    modalCloseText: { color: "#2f6fed", fontWeight: "600" },
+    modalCloseText: { color: ACCENT_COLOR, fontWeight: "600" },
     conflictSection: { marginBottom: 10 },
     conflictLabel: { color: "#666", fontSize: 12, marginBottom: 4 },
     conflictText: { fontWeight: "600", color: "#111" },
@@ -611,7 +612,7 @@ const styles = StyleSheet.create({
         flex: 1,
         paddingVertical: 10,
         borderRadius: 8,
-        backgroundColor: "#2f6fed",
+        backgroundColor: ACCENT_COLOR,
         alignItems: "center",
     },
     conflictButtonText: { color: "#fff", fontWeight: "600" },

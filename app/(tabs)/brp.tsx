@@ -9,7 +9,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useTheme } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { apiGet } from "../../src/api/client";
 import { useJournalStore } from "../../src/store/journalStore";
@@ -51,6 +51,7 @@ const PLAN_TIMEOUT_MS = 2500;
 
 export default function BRP() {
   const router = useRouter();
+  const { colors, dark: isDark } = useTheme();
   const { journals, loadJournals } = useJournalStore();
   const selectedYear = usePlanStore((state) => state.selectedYear);
   const setSelectedYear = usePlanStore((state) => state.setSelectedYear);
@@ -74,6 +75,11 @@ export default function BRP() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const subtleText = isDark ? "#b9c0cf" : "#555";
+  const mutedText = isDark ? "#8e95a6" : "#666";
+  const chipBackground = isDark ? "#1f2430" : "#f2f2f2";
+  const rowBorder = isDark ? "#2a3142" : "#e5e5e5";
+  const menuActive = isDark ? "#232936" : "#e3e3e3";
 
   const loadPlan = useCallback(
     async (isRefresh = false) => {
@@ -260,32 +266,37 @@ export default function BRP() {
   }, [planByMonth, selectedYear, scrollToMonth]);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Bible Reading Plan</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>
+          Bible Reading Plan
+        </Text>
         <Pressable
-          style={styles.yearButton}
+          style={[styles.yearButton, { backgroundColor: chipBackground }]}
           onPress={() => setYearMenuOpen((prev) => !prev)}
         >
-          <Text style={styles.yearText}>{selectedYear}</Text>
+          <Text style={[styles.yearText, { color: colors.text }]}>
+            {selectedYear}
+          </Text>
           {/* <Ionicons name="chevron-down" size={16} color="#333" /> */}
         </Pressable>
       </View>
 
       {yearMenuOpen ? (
-        <View style={styles.yearMenu}>
+        <View style={[styles.yearMenu, { backgroundColor: chipBackground }]}>
           {YEAR_OPTIONS.map((year) => (
             <Pressable
               key={year}
               style={[
                 styles.yearOption,
-                year === selectedYear && styles.yearOptionActive,
+                year === selectedYear && [styles.yearOptionActive, { backgroundColor: menuActive }],
               ]}
               onPress={() => selectYear(year)}
             >
               <Text
                 style={[
                   styles.yearOptionText,
+                  { color: colors.text },
                   year === selectedYear && styles.yearOptionTextActive,
                 ]}
               >
@@ -310,7 +321,7 @@ export default function BRP() {
             />
           }
         >
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+          {error ? <Text style={[styles.error, { color: "#d64545" }]}>{error}</Text> : null}
 
           {MONTHS.map((month) => {
             const days = planByMonth[month] ?? [];
@@ -319,7 +330,7 @@ export default function BRP() {
             return (
               <View
                 key={month}
-                style={styles.section}
+                style={[styles.section, { backgroundColor: colors.card }]}
                 onLayout={(event) => {
                   sectionOffsets.current[month] = event.nativeEvent.layout.y;
                   if (pendingScrollMonth.current === month) {
@@ -331,15 +342,17 @@ export default function BRP() {
                   style={styles.sectionHeader}
                   onPress={() => toggleMonth(month)}
                 >
-                  <Text style={styles.sectionTitle}>{month}</Text>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                    {month}
+                  </Text>
                   <View style={styles.sectionRight}>
-                    <Text style={styles.sectionCount}>
+                    <Text style={[styles.sectionCount, { color: mutedText }]}>
                       {days.length}
                     </Text>
                     <Ionicons
                       name={expanded ? "chevron-up" : "chevron-down"}
                       size={18}
-                      color="#444"
+                      color={mutedText}
                     />
                   </View>
                 </Pressable>
@@ -354,12 +367,16 @@ export default function BRP() {
                         return (
                           <Pressable
                             key={day._id}
-                            style={styles.row}
+                            style={[styles.row, { borderTopColor: rowBorder }]}
                             onPress={() => openEditor(day.verse)}
                           >
                             <View style={styles.rowLeft}>
-                              <Text style={styles.date}>{day.date}</Text>
-                              <Text style={styles.verse}>{day.verse}</Text>
+                              <Text style={[styles.date, { color: mutedText }]}>
+                                {day.date}
+                              </Text>
+                              <Text style={[styles.verse, { color: colors.text }]}>
+                                {day.verse}
+                              </Text>
                             </View>
                             <Ionicons
                               name={
@@ -374,7 +391,9 @@ export default function BRP() {
                         );
                       })
                     ) : (
-                      <Text style={styles.empty}>No entries.</Text>
+                      <Text style={[styles.empty, { color: mutedText }]}>
+                        No entries.
+                      </Text>
                     )}
                   </View>
                 ) : null}
@@ -400,15 +419,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#f2f2f2",
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 10,
   },
-  yearText: { fontSize: 14, fontWeight: "600", color: "#333" },
+  yearText: { fontSize: 14, fontWeight: "600" },
   yearMenu: {
     borderRadius: 12,
-    backgroundColor: "#f2f2f2",
     paddingVertical: 6,
     marginBottom: 12,
   },
@@ -416,10 +433,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
-  yearOptionActive: {
-    backgroundColor: "#e3e3e3",
-  },
-  yearOptionText: { fontSize: 14, color: "#333" },
+  yearOptionActive: {},
+  yearOptionText: { fontSize: 14 },
   yearOptionTextActive: { fontWeight: "600" },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   error: {
@@ -429,7 +444,6 @@ const styles = StyleSheet.create({
   },
   section: {
     borderRadius: 12,
-    backgroundColor: "#f2f2f2",
     marginBottom: 12,
     overflow: "hidden",
   },
@@ -440,9 +454,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  sectionTitle: { fontSize: 16, fontWeight: "600", color: "#111" },
+  sectionTitle: { fontSize: 16, fontWeight: "600" },
   sectionRight: { flexDirection: "row", alignItems: "center", gap: 8 },
-  sectionCount: { color: "#666", fontSize: 12 },
+  sectionCount: { fontSize: 12 },
   sectionBody: {
     paddingHorizontal: 14,
     paddingBottom: 8,
@@ -450,13 +464,12 @@ const styles = StyleSheet.create({
   row: {
     paddingVertical: 10,
     borderTopWidth: 1,
-    borderTopColor: "#e5e5e5",
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
   rowLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
-  date: { width: 26, color: "#666" },
-  verse: { flexShrink: 1, color: "#222" },
-  empty: { color: "#888", paddingVertical: 10 },
+  date: { width: 26 },
+  verse: { flexShrink: 1 },
+  empty: { paddingVertical: 10 },
 });
