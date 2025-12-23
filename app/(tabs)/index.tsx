@@ -1,6 +1,7 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
+  Animated,
   View,
   Text,
   FlatList,
@@ -64,6 +65,14 @@ export default function JournalListScreen() {
   } | null>(null);
   const [todayLoading, setTodayLoading] = useState(false);
   const [todayError, setTodayError] = useState<string | null>(null);
+  const [statusText, setStatusText] = useState<string | null>(null);
+  const [statusKind, setStatusKind] = useState<"info" | "offline" | "error">(
+    "info"
+  );
+  const statusTranslate = useRef(new Animated.Value(-20)).current;
+  const statusOpacity = useRef(new Animated.Value(0)).current;
+  const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const statusCacheRef = useRef<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -278,6 +287,84 @@ export default function JournalListScreen() {
     }
   };
 
+  const showStatus = useCallback(
+    (text: string, kind: "info" | "offline" | "error") => {
+      statusCacheRef.current = text;
+      if (statusTimerRef.current) {
+        clearTimeout(statusTimerRef.current);
+      }
+      statusTranslate.setValue(-20);
+      statusOpacity.setValue(0);
+      setStatusKind(kind);
+      setStatusText(text);
+      Animated.parallel([
+        Animated.timing(statusTranslate, {
+          toValue: 0,
+          duration: 220,
+          useNativeDriver: true,
+        }),
+        Animated.timing(statusOpacity, {
+          toValue: 1,
+          duration: 220,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      statusTimerRef.current = setTimeout(() => {
+        Animated.parallel([
+          Animated.timing(statusTranslate, {
+            toValue: -20,
+            duration: 200,
+            useNativeDriver: true,
+          }),
+          Animated.timing(statusOpacity, {
+            toValue: 0,
+            duration: 200,
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          setStatusText(null);
+        });
+      }, 2600);
+    },
+    [statusOpacity, statusTranslate]
+  );
+
+  useEffect(() => {
+    let nextText: string | null = null;
+    let nextKind: "info" | "offline" | "error" = "info";
+
+    if (syncError) {
+      nextText =
+        syncError.toLowerCase().includes("timed out")
+          ? "Request timed out"
+          : syncError;
+      nextKind = "error";
+    } else if (!isOnline) {
+      nextText = "Offline mode";
+      nextKind = "offline";
+    } else if (lastSyncAt) {
+      nextText = `Last sync: ${formatTime(lastSyncAt)}`;
+      nextKind = "info";
+    }
+
+    if (!nextText || statusCacheRef.current === nextText) return;
+    showStatus(nextText, nextKind);
+  }, [
+    isOnline,
+    lastSyncAt,
+    showStatus,
+    syncError,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      if (statusTimerRef.current) {
+        clearTimeout(statusTimerRef.current);
+      }
+    };
+  }, []);
+
   const confirmSoftDelete = (id: string) => {
     Alert.alert(
       "Move to trash?",
@@ -340,14 +427,27 @@ export default function JournalListScreen() {
                 </Pressable>
               </View>
             </View>
-            {syncError ? (
-              <Text style={styles.syncErrorText}>{syncError}</Text>
-            ) : !isOnline ? (
-              <Text style={styles.syncOfflineText}>Offline mode</Text>
-            ) : lastSyncAt ? (
-              <Text style={styles.syncMetaText}>
-                Last sync: {formatTime(lastSyncAt)}
-              </Text>
+            {statusText ? (
+              <Animated.View
+                style={[
+                  styles.statusBanner,
+                  statusKind === "offline" && styles.statusBannerOffline,
+                  statusKind === "error" && styles.statusBannerError,
+                  {
+                    transform: [{ translateY: statusTranslate }],
+                    opacity: statusOpacity,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.statusBannerText,
+                    statusKind === "error" && styles.statusBannerTextError,
+                  ]}
+                >
+                  {statusText}
+                </Text>
+              </Animated.View>
             ) : null}
             <View style={{ paddingLeft: 10, paddingRight: 10, marginTop: 5 }}>
             <TextInput
@@ -479,9 +579,23 @@ const styles = StyleSheet.create({
   },
   todayButtonDisabled: { backgroundColor: "#9db5ee" },
   todayButtonText: { color: "#fff", fontWeight: "600" },
-  syncErrorText: { color: "#d64545", marginTop: 8 },
-  syncOfflineText: { color: "#666", marginTop: 8 },
-  syncMetaText: { color: "#666", marginTop: 8 },
+  statusBanner: {
+    alignSelf: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "#eef2ff",
+    marginTop: 6,
+  },
+  statusBannerOffline: { backgroundColor: "#f2f2f2" },
+  statusBannerError: { backgroundColor: "#fdecea" },
+  statusBannerText: {
+    color: "#333",
+    fontSize: 12,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  statusBannerTextError: { color: "#b42318" },
   search: {
     borderWidth: 1,
     borderColor: "#ccc",

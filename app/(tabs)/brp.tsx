@@ -47,6 +47,7 @@ const MONTHS = [
 ];
 const AUTO_SCROLL_MONTH = MONTHS[new Date().getMonth()];
 const SCROLL_OFFSET = 12;
+const PLAN_TIMEOUT_MS = 2500;
 
 export default function BRP() {
   const router = useRouter();
@@ -107,7 +108,11 @@ export default function BRP() {
 
         const responses = await Promise.all(
           MONTHS.map((month) =>
-            apiGet(`/reading-plan/${selectedYear}/${encodeURIComponent(month)}`)
+            apiGet(
+              `/reading-plan/${selectedYear}/${encodeURIComponent(month)}`,
+              true,
+              PLAN_TIMEOUT_MS
+            )
           )
         );
         const next: Record<string, PlanDay[]> = {};
@@ -238,7 +243,6 @@ export default function BRP() {
   };
 
   useEffect(() => {
-    if (!backendReady) return;
     if (autoExpandRef.current) return;
     if (!planByMonth[AUTO_SCROLL_MONTH]) return;
     autoExpandRef.current = true;
@@ -253,7 +257,7 @@ export default function BRP() {
       }));
       scrollToMonth(AUTO_SCROLL_MONTH, true);
     });
-  }, [backendReady, planByMonth, selectedYear, scrollToMonth]);
+  }, [planByMonth, selectedYear, scrollToMonth]);
 
   return (
     <SafeAreaView style={styles.container}>

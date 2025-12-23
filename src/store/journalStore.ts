@@ -15,6 +15,8 @@ import {
 } from "../db/localDb";
 
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+const SYNC_TIMEOUT_MS = 2500;
+const AUTH_TIMEOUT_MS = 2500;
 
 type JournalConflict = {
     id: string;
@@ -62,7 +64,7 @@ const getOrCreateBackendToken = async () => {
     const user = auth.currentUser;
     if (!user) return null;
     const idToken = await user.getIdToken(true);
-    const data = await apiPost("/auth", { idToken }, false);
+    const data = await apiPost("/auth", { idToken }, false, AUTH_TIMEOUT_MS);
     token = data?.token ?? null;
     if (token) {
         await AsyncStorage.setItem("backendToken", token);
@@ -341,7 +343,12 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
                         await updateLocalJournalMeta(localId, { syncStatus: "synced" });
                         continue;
                     }
-                    const created = await apiPost("/journals", payload);
+                    const created = await apiPost(
+                        "/journals",
+                        payload,
+                        true,
+                        SYNC_TIMEOUT_MS
+                    );
                     await updateLocalJournal(
                         localId,
                         {
@@ -365,7 +372,12 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
 
                 if (entry.syncStatus === "pending_update") {
                     if (!serverId) {
-                        const created = await apiPost("/journals", payload);
+                        const created = await apiPost(
+                            "/journals",
+                            payload,
+                            true,
+                            SYNC_TIMEOUT_MS
+                        );
                         await updateLocalJournal(
                             localId,
                             {
@@ -387,10 +399,15 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
                         continue;
                     }
                     try {
-                        const updated = await apiPut(`/journals/${serverId}`, {
+                        const updated = await apiPut(
+                            `/journals/${serverId}`,
+                            {
                             ...payload,
                             baseVersion: entry.version,
-                        });
+                            },
+                            true,
+                            SYNC_TIMEOUT_MS
+                        );
                         await upsertJournalFromServer(updated);
                     } catch (err: any) {
                         if (err?.status === 409 && err?.data?.error === "VERSION_CONFLICT") {
@@ -418,7 +435,7 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
                         await updateLocalJournalMeta(localId, { syncStatus: "synced" });
                         continue;
                     }
-                    await apiDelete(`/journals/${serverId}`);
+                    await apiDelete(`/journals/${serverId}`, true, SYNC_TIMEOUT_MS);
                     await updateLocalJournalMeta(localId, { syncStatus: "synced", deleted: true });
                     continue;
                 }
@@ -428,7 +445,12 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
                         await updateLocalJournalMeta(localId, { syncStatus: "pending_create" });
                         continue;
                     }
-                    const restored = await apiPost(`/journals/${serverId}/restore`, {});
+                    const restored = await apiPost(
+                        `/journals/${serverId}/restore`,
+                        {},
+                        true,
+                        SYNC_TIMEOUT_MS
+                    );
                     await upsertJournalFromServer(restored);
                     continue;
                 }
@@ -438,13 +460,17 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
                         await deleteLocalJournal(localId);
                         continue;
                     }
-                    await apiDelete(`/journals/${serverId}/permanent`);
+                    await apiDelete(
+                        `/journals/${serverId}/permanent`,
+                        true,
+                        SYNC_TIMEOUT_MS
+                    );
                     await deleteLocalJournal(localId);
                 }
             }
 
-            const active = await apiGet("/journals");
-            const deleted = await apiGet("/journals/trash");
+            const active = await apiGet("/journals", true, SYNC_TIMEOUT_MS);
+            const deleted = await apiGet("/journals/trash", true, SYNC_TIMEOUT_MS);
             for (const entry of [...active, ...deleted]) {
                 if (conflictIds.has(entry._id)) continue;
                 await upsertJournalFromServer(entry);

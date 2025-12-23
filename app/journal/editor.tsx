@@ -309,7 +309,10 @@ export default function JournalEditor(props: EditorProps) {
         });
 
         // Redirect to edit after create
-        router.replace(`./edit/${entry._id}`);
+        router.replace({
+            pathname: "/journal/edit",
+            params: { id: entry._id },
+        });
         } else {
         const ok = await updateJournal(props.id, {
             title,

@@ -17,12 +17,18 @@ export default function RootLayout() {
   const resetAuth = useAuthStore((state) => state.reset);
   const segments = useSegments();
   const inAuthGroup = segments[0] === "(auth)";
-  const inTabsGroup = segments[0] === "(tabs)";
+  const isRoot = segments.length === 0 || segments[0] === "index";
+  const OFFLINE_TIMEOUT_MS = 1500;
 
   useEffect(() => {
     const exchangeBackendToken = async (firebaseUser: User) => {
       const idToken = await firebaseUser.getIdToken(true);
-      const data = await apiPost("/auth", { idToken }, false);
+      const data = await apiPost(
+        "/auth",
+        { idToken },
+        false,
+        OFFLINE_TIMEOUT_MS
+      );
       const token = data?.token;
       if (!token) return null;
       await AsyncStorage.setItem("backendToken", token);
@@ -67,11 +73,11 @@ export default function RootLayout() {
 
       // 3. Validate backend session with /me
       try {
-        const me = await apiGet("/me");
+        const me = await apiGet("/me", true, OFFLINE_TIMEOUT_MS);
         console.log("SESSION RESTORED, ME:", me);
 
         setBackendReady(true);
-        if (!inTabsGroup) {
+        if (inAuthGroup || isRoot) {
           router.replace("/(tabs)");
         }
       } catch (err) {
@@ -80,9 +86,9 @@ export default function RootLayout() {
           console.log("Backend session invalid -> retry /auth");
           try {
             await exchangeBackendToken(user);
-            await apiGet("/me");
+            await apiGet("/me", true, OFFLINE_TIMEOUT_MS);
             setBackendReady(true);
-            if (!inTabsGroup) {
+            if (inAuthGroup || isRoot) {
               router.replace("/(tabs)");
             }
           } catch (retryErr) {
@@ -97,7 +103,7 @@ export default function RootLayout() {
         } else {
           console.log("Backend unreachable, entering offline mode");
           setBackendReady(false);
-          if (!inTabsGroup) {
+          if (inAuthGroup || isRoot) {
             router.replace("/(tabs)");
           }
         }
@@ -105,7 +111,7 @@ export default function RootLayout() {
     });
 
     return unsub;
-  }, [inAuthGroup, inTabsGroup]);
+  }, [inAuthGroup, isRoot]);
 
   return (
     <SafeAreaProvider>

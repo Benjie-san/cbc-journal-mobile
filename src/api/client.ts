@@ -22,6 +22,8 @@ async function getHeaders(withAuth: boolean) {
   return { "Content-Type": "application/json" };
 }
 
+const DEFAULT_TIMEOUT_MS = 8000;
+
 async function parseBody(res: Response) {
   const text = await res.text();
   if (!text) return null;
@@ -29,6 +31,29 @@ async function parseBody(res: Response) {
     return JSON.parse(text);
   } catch {
     return text;
+  }
+}
+
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit,
+  timeoutMs: number
+) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (err: any) {
+    if (err?.name === "AbortError") {
+      const timeoutErr = new Error("Request timed out") as Error & {
+        status?: number;
+      };
+      timeoutErr.status = 0;
+      throw timeoutErr;
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
@@ -54,39 +79,73 @@ async function handleResponse(res: Response) {
   return data;
 }
 
-export async function apiGet(path: string, withAuth = true) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: await getHeaders(withAuth),
-  });
+export async function apiGet(
+  path: string,
+  withAuth = true,
+  timeoutMs = DEFAULT_TIMEOUT_MS
+) {
+  const res = await fetchWithTimeout(
+    `${API_BASE}${path}`,
+    {
+      headers: await getHeaders(withAuth),
+    },
+    timeoutMs
+  );
 
   return handleResponse(res);
 }
 
-export async function apiPost(path: string, body: any, withAuth = true) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
-    headers: await getHeaders(withAuth),
-    body: JSON.stringify(body),
-  });
+export async function apiPost(
+  path: string,
+  body: any,
+  withAuth = true,
+  timeoutMs = DEFAULT_TIMEOUT_MS
+) {
+  const res = await fetchWithTimeout(
+    `${API_BASE}${path}`,
+    {
+      method: "POST",
+      headers: await getHeaders(withAuth),
+      body: JSON.stringify(body),
+    },
+    timeoutMs
+  );
 
   return handleResponse(res);
 }
 
-export async function apiPut(path: string, body: any, withAuth = true) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: "PUT",
-    headers: await getHeaders(withAuth),
-    body: JSON.stringify(body),
-  });
+export async function apiPut(
+  path: string,
+  body: any,
+  withAuth = true,
+  timeoutMs = DEFAULT_TIMEOUT_MS
+) {
+  const res = await fetchWithTimeout(
+    `${API_BASE}${path}`,
+    {
+      method: "PUT",
+      headers: await getHeaders(withAuth),
+      body: JSON.stringify(body),
+    },
+    timeoutMs
+  );
 
   return handleResponse(res);
 }
 
-export async function apiDelete(path: string, withAuth = true) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: "DELETE",
-    headers: await getHeaders(withAuth),
-  });
+export async function apiDelete(
+  path: string,
+  withAuth = true,
+  timeoutMs = DEFAULT_TIMEOUT_MS
+) {
+  const res = await fetchWithTimeout(
+    `${API_BASE}${path}`,
+    {
+      method: "DELETE",
+      headers: await getHeaders(withAuth),
+    },
+    timeoutMs
+  );
 
   return handleResponse(res);
 }
