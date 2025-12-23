@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Alert,
   View,
@@ -12,12 +12,12 @@ import {
 import * as Haptics from "expo-haptics";
 import { useJournalStore } from "../../src/store/journalStore";
 import { useRouter } from "expo-router";
-import { useAuthStore } from "@/src/store/authStore";
 import { useFocusEffect } from "@react-navigation/native";
 import { apiGet } from "../../src/api/client";
 import { usePlanStore } from "../../src/store/planStore";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { getPlanDaysByYear, savePlanDays } from "../../src/db/localDb";
 
 const PLAN_YEARS = [2024, 2025];
 const MONTHS = [
@@ -38,11 +38,15 @@ const MONTHS = [
 
 export default function JournalListScreen() {
   const router = useRouter();
-  const backendReady = useAuthStore(s => s.backendReady);
   const {
     journals,
     loadJournals,
     softDelete,
+    syncJournals,
+    syncing,
+    isOnline,
+    lastSyncAt,
+    syncError,
   } = useJournalStore();
   const selectedYear = usePlanStore((state) => state.selectedYear);
   const hydratePlanYear = usePlanStore((state) => state.hydrate);
@@ -61,13 +65,13 @@ export default function JournalListScreen() {
   const [todayLoading, setTodayLoading] = useState(false);
   const [todayError, setTodayError] = useState<string | null>(null);
 
-  useEffect(() => {
-  if (!backendReady) return;
-  loadJournals();
-  }, [backendReady]);
+  useFocusEffect(
+    useCallback(() => {
+      loadJournals();
+    }, [loadJournals])
+  );
 
   const loadTodayPassage = useCallback(async () => {
-    if (!backendReady) return;
     setTodayLoading(true);
     setTodayError(null);
 
@@ -77,8 +81,25 @@ export default function JournalListScreen() {
     const planYear = PLAN_YEARS.includes(selectedYear)
       ? selectedYear
       : defaultYear;
+    let hasCachedMatch = false;
 
     try {
+      const cached = await getPlanDaysByYear(planYear);
+      if (cached.length) {
+        const cachedToday = cached.find(
+          (day) => day.month === month && day.date === date
+        );
+        if (cachedToday?.verse) {
+          setTodayPassage({
+            verse: cachedToday.verse,
+            month,
+            date,
+            year: planYear,
+          });
+          hasCachedMatch = true;
+        }
+      }
+
       const monthDays = await apiGet(
         `/reading-plan/${planYear}/${encodeURIComponent(month)}`
       );
@@ -91,32 +112,37 @@ export default function JournalListScreen() {
           date,
           year: planYear,
         });
-        return;
+      } else {
+        const januaryDays = await apiGet(`/reading-plan/${planYear}/January`);
+        const firstDay = januaryDays.find((day: any) => day.date === 1);
+        if (firstDay?.verse) {
+          setTodayPassage({
+            verse: firstDay.verse,
+            month: "January",
+            date: 1,
+            year: planYear,
+          });
+        }
       }
 
-      const januaryDays = await apiGet(
-        `/reading-plan/${planYear}/January`
-      );
-      const firstDay = januaryDays.find((day: any) => day.date === 1);
-      if (firstDay?.verse) {
-        setTodayPassage({
-          verse: firstDay.verse,
-          month: "January",
-          date: 1,
-          year: planYear,
-        });
-        return;
-      }
-
-      setTodayPassage(null);
-      setTodayError("No passage found.");
+      const planRows = monthDays.map((day: any) => ({
+        year: planYear,
+        month,
+        date: day.date,
+        order: day.order,
+        verse: day.verse,
+        isSermonNotes: !!day.isSermonNotes,
+      }));
+      await savePlanDays(planRows);
     } catch (err: any) {
-      setTodayPassage(null);
-      setTodayError(err?.message ?? "Failed to load today's passage.");
+      if (!hasCachedMatch) {
+        setTodayPassage(null);
+        setTodayError(err?.message ?? "Failed to load today's passage.");
+      }
     } finally {
       setTodayLoading(false);
     }
-  }, [backendReady, defaultYear, selectedYear]);
+  }, [defaultYear, selectedYear]);
 
   useFocusEffect(
     useCallback(() => {
@@ -225,6 +251,33 @@ export default function JournalListScreen() {
     });
   };
 
+  const formatStatus = (entry: typeof journals[number]) => {
+    switch (entry.syncStatus) {
+      case "pending_create":
+      case "pending_update":
+        return "Saved locally";
+      case "pending_delete":
+        return "Pending delete";
+      case "pending_restore":
+        return "Pending restore";
+      case "pending_permanent_delete":
+        return "Pending removal";
+      case "conflict":
+        return "Conflict";
+      default:
+        return "Synced";
+    }
+  };
+
+  const formatTime = (value?: string) => {
+    if (!value) return "";
+    try {
+      return new Date(value).toLocaleString();
+    } catch {
+      return value;
+    }
+  };
+
   const confirmSoftDelete = (id: string) => {
     Alert.alert(
       "Move to trash?",
@@ -242,6 +295,8 @@ export default function JournalListScreen() {
         data={filteredJournals}
         keyExtractor={(item) => item._id}
         contentContainerStyle={{ paddingBottom: 100 }}
+        refreshing={syncing}
+        onRefresh={syncJournals}
         ListEmptyComponent={
           <Text style={styles.empty}>
             {journals.length ? "No matching entries." : "No journal entries yet."}
@@ -285,6 +340,15 @@ export default function JournalListScreen() {
                 </Pressable>
               </View>
             </View>
+            {syncError ? (
+              <Text style={styles.syncErrorText}>{syncError}</Text>
+            ) : !isOnline ? (
+              <Text style={styles.syncOfflineText}>Offline mode</Text>
+            ) : lastSyncAt ? (
+              <Text style={styles.syncMetaText}>
+                Last sync: {formatTime(lastSyncAt)}
+              </Text>
+            ) : null}
             <View style={{ paddingLeft: 10, paddingRight: 10, marginTop: 5 }}>
             <TextInput
               style={[styles.search,]}
@@ -357,6 +421,14 @@ export default function JournalListScreen() {
             {item.tags?.length ? (
               <Text style={styles.tagsLine}>{item.tags.join(", ")}</Text>
             ) : null}
+            <View style={styles.metaRow}>
+              <Text style={styles.syncStatus}>{formatStatus(item)}</Text>
+              {item.lastSavedAt ? (
+                <Text style={styles.lastSavedAt}>
+                  {formatTime(item.lastSavedAt)}
+                </Text>
+              ) : null}
+            </View>
             <Text style={styles.preview}>
               {item.content?.observation?.slice(0, 80) || ""}
             </Text>
@@ -407,6 +479,9 @@ const styles = StyleSheet.create({
   },
   todayButtonDisabled: { backgroundColor: "#9db5ee" },
   todayButtonText: { color: "#fff", fontWeight: "600" },
+  syncErrorText: { color: "#d64545", marginTop: 8 },
+  syncOfflineText: { color: "#666", marginTop: 8 },
+  syncMetaText: { color: "#666", marginTop: 8 },
   search: {
     borderWidth: 1,
     borderColor: "#ccc",
@@ -434,6 +509,13 @@ const styles = StyleSheet.create({
   title: { fontSize: 16, fontWeight: "600" },
   scriptureRef: { marginTop: 6, color: "#555" },
   tagsLine: { marginTop: 4, color: "#2f6fed", fontSize: 12 },
+  metaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 6,
+  },
+  syncStatus: { fontSize: 12, color: "#555" },
+  lastSavedAt: { fontSize: 12, color: "#777" },
   preview: { marginTop: 6, color: "#555" },
   empty: { textAlign: "center", marginTop: 40, color: "#888" },
   fab: {
@@ -449,4 +531,3 @@ const styles = StyleSheet.create({
   },
   fabText: { color: "white", fontSize: 28, fontWeight: "600" },
 });
-

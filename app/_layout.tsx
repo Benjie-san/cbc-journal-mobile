@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Stack, router } from "expo-router";
+import { Stack, router, useSegments } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -15,6 +15,9 @@ export default function RootLayout() {
   const setBackendReady = useAuthStore((state) => state.setBackendReady);
   const setUser = useAuthStore((state) => state.setUser);
   const resetAuth = useAuthStore((state) => state.reset);
+  const segments = useSegments();
+  const inAuthGroup = segments[0] === "(auth)";
+  const inTabsGroup = segments[0] === "(tabs)";
 
   useEffect(() => {
     const exchangeBackendToken = async (firebaseUser: User) => {
@@ -37,7 +40,9 @@ export default function RootLayout() {
         resetStore();
         resetAuth();
         await AsyncStorage.removeItem("backendToken");
-        router.replace("/(auth)");
+        if (!inAuthGroup) {
+          router.replace("/(auth)");
+        }
         return;
       }
 
@@ -66,31 +71,41 @@ export default function RootLayout() {
         console.log("SESSION RESTORED, ME:", me);
 
         setBackendReady(true);
-        router.replace("/(tabs)");
-      } catch (err) {
-        console.log("Backend session invalid -> retry /auth");
-        try {
-          await exchangeBackendToken(user);
-          await apiGet("/me");
-          setBackendReady(true);
+        if (!inTabsGroup) {
           router.replace("/(tabs)");
-        } catch (retryErr) {
-          console.log("Backend session restore failed:", retryErr);
-          resetStore();
-          resetAuth();
-          await AsyncStorage.removeItem("backendToken");
-          router.replace("/(auth)");
+        }
+      } catch (err) {
+        const status = (err as any)?.status;
+        if (status === 401 || status === 403) {
+          console.log("Backend session invalid -> retry /auth");
+          try {
+            await exchangeBackendToken(user);
+            await apiGet("/me");
+            setBackendReady(true);
+            if (!inTabsGroup) {
+              router.replace("/(tabs)");
+            }
+          } catch (retryErr) {
+            console.log("Backend session restore failed:", retryErr);
+            resetStore();
+            resetAuth();
+            await AsyncStorage.removeItem("backendToken");
+            if (!inAuthGroup) {
+              router.replace("/(auth)");
+            }
+          }
+        } else {
+          console.log("Backend unreachable, entering offline mode");
+          setBackendReady(false);
+          if (!inTabsGroup) {
+            router.replace("/(tabs)");
+          }
         }
       }
     });
 
     return unsub;
-  }, []);
-
-  if (!firebaseReady) {
-    console.log("Waiting for Firebase to initialize...");
-    return null; // or splash screen
-  }
+  }, [inAuthGroup, inTabsGroup]);
 
   return (
     <SafeAreaProvider>

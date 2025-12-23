@@ -3,6 +3,16 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiGet, apiPost, apiPut, apiDelete } from "../api/client";
 import { auth } from "../firebase/config";
 import { JournalEntry } from "../types/Journal";
+import {
+    createLocalJournal,
+    deleteLocalJournal,
+    getLocalJournals,
+    getPendingLocalJournals,
+    initDb,
+    updateLocalJournal,
+    updateLocalJournalMeta,
+    upsertJournalFromServer,
+} from "../db/localDb";
 
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -25,6 +35,10 @@ interface JournalStore {
     trash: JournalEntry[];
     saving: boolean;
     conflict: JournalConflict | null;
+    syncing: boolean;
+    lastSyncAt?: string;
+    isOnline: boolean;
+    syncError?: string | null;
 
     loadJournals: () => Promise<void>;
     loadTrash: () => Promise<void>;
@@ -38,6 +52,7 @@ interface JournalStore {
     applyServerEntry: (id: string, serverEntry: JournalConflict["serverEntry"], serverVersion: number) => void;
     resolveConflictKeepMine: (id: string, payload: Partial<JournalEntry>, serverVersion: number) => Promise<void>;
     replaceJournal: (entry: JournalEntry) => void;
+    syncJournals: () => Promise<void>;
     reset: () => void;
 }
 
@@ -60,78 +75,92 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
     trash: [],
     saving: false,
     conflict: null,
+    syncing: false,
+    lastSyncAt: undefined,
+    isOnline: true,
+    syncError: null,
 
     loadJournals: async () => {
-        const token = await getOrCreateBackendToken();
-        if (!token) {
-            set({ journals: [] });
-            return;
-        }
         try {
-            const data = await apiGet("/journals");
-            set({ journals: data });
+            await initDb();
+            const local = await getLocalJournals(false);
+            set({ journals: local });
         } catch (err) {
-            console.error("Failed to load journals:", err);
+            console.error("Failed to load local journals:", err);
             set({ journals: [] });
         }
     },
 
     loadTrash: async () => {
-    const token = await getOrCreateBackendToken();
-    if (!token) {
-        set({ trash: [] });
-        return;
-    }
-    try {
-        const data = await apiGet("/journals/trash");
-        set({ trash: data });
-    } catch (err) {
-        console.error("Failed to load trash:", err);
-        set({ trash: [] });
-    }
+        try {
+            await initDb();
+            const local = await getLocalJournals(true);
+            set({ trash: local });
+        } catch (err) {
+            console.error("Failed to load local trash:", err);
+            set({ trash: [] });
+        }
     },
 
     createJournal: async (payload) => {
-        const entry = await apiPost("/journals", payload);
+        const entry = await createLocalJournal(payload);
         set({ journals: [entry, ...get().journals] });
+
+        try {
+            await get().syncJournals();
+        } catch (err) {
+            // sync is manual; ignore immediate failure
+        }
+
         return entry;
     },
 
     updateJournal: async (id, payload) => {
-        const journal = get().journals.find(j => j._id === id);
+        const journal = get().journals.find(j =>
+            j._id === id || j.localId === id
+        );
         if (!journal) return false;
 
+        const localId = journal.localId ?? journal._id;
+        const next: JournalEntry = {
+            ...journal,
+            ...payload,
+            content: payload.content ?? journal.content,
+            tags: payload.tags ?? journal.tags,
+            title: payload.title ?? journal.title,
+            scriptureRef: payload.scriptureRef ?? journal.scriptureRef,
+            updatedAt: new Date().toISOString(),
+            lastSavedAt: new Date().toISOString(),
+        };
+
+        const nextSyncStatus =
+            journal.syncStatus === "conflict"
+                ? "conflict"
+                : journal.serverId
+                ? "pending_update"
+                : "pending_create";
+
         set({ saving: true });
+        await updateLocalJournal(
+            localId,
+            {
+                title: next.title,
+                scriptureRef: next.scriptureRef,
+                tags: next.tags,
+                content: next.content,
+                deleted: journal.deleted,
+                version: journal.version,
+            },
+            nextSyncStatus
+        );
 
-        try {
-            const updated = await apiPut(`/journals/${id}`, {
-                ...payload,
-                baseVersion: journal.version,
-            });
-
-            set({
-                journals: get().journals.map(j =>
-                j._id === id ? updated : j
-                ),
-                saving: false,
-            });
-            return true;
-        } catch (err: any) {
-            if (err?.status === 409 && err?.data?.error === "VERSION_CONFLICT") {
-                set({
-                    saving: false,
-                    conflict: {
-                        id,
-                        serverVersion: err.data.serverVersion,
-                        serverEntry: err.data.serverEntry,
-                        clientPayload: payload,
-                    },
-                });
-                return false;
-            }
-            set({ saving: false });
-            throw err;
-        }
+        set({
+            journals: get().journals.map(j =>
+                j._id === journal._id ? { ...next, syncStatus: nextSyncStatus } : j
+            ),
+            saving: false,
+        });
+        return true;
     },
 
     autosaveJournal: (id, payload, delay = 1200) => {
@@ -150,32 +179,98 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
     },
 
     softDelete: async (id) => {
-        await apiDelete(`/journals/${id}`);
+        const journal = get().journals.find(j =>
+            j._id === id || j.localId === id
+        );
+        if (!journal) return;
+        const localId = journal.localId ?? journal._id;
+        const nextSyncStatus = journal.serverId ? "pending_delete" : journal.syncStatus ?? "pending_create";
+        await updateLocalJournal(
+            localId,
+            {
+                title: journal.title,
+                scriptureRef: journal.scriptureRef,
+                tags: journal.tags,
+                content: journal.content,
+                deleted: true,
+                version: journal.version,
+            },
+            nextSyncStatus
+        );
+        const next = { ...journal, deleted: true, syncStatus: nextSyncStatus };
         set({
-        journals: get().journals.filter(j => j._id !== id),
+            journals: get().journals.filter(j => j._id !== journal._id),
+            trash: [next, ...get().trash],
         });
     },
 
     restore: async (id) => {
-        const restored = await apiPost(`/journals/${id}/restore`, {});
+        const journal = get().trash.find(j =>
+            j._id === id || j.localId === id
+        );
+        if (!journal) return;
+        const localId = journal.localId ?? journal._id;
+        const nextSyncStatus = journal.serverId ? "pending_restore" : "pending_create";
+        await updateLocalJournal(
+            localId,
+            {
+                title: journal.title,
+                scriptureRef: journal.scriptureRef,
+                tags: journal.tags,
+                content: journal.content,
+                deleted: false,
+                version: journal.version,
+            },
+            nextSyncStatus
+        );
+        const next = { ...journal, deleted: false, syncStatus: nextSyncStatus };
         set({
-        trash: get().trash.filter(j => j._id !== id),
-        journals: [restored, ...get().journals],
+            trash: get().trash.filter(j => j._id !== journal._id),
+            journals: [next, ...get().journals],
         });
     },
 
     permanentDelete: async (id) => {
-        await apiDelete(`/journals/${id}/permanent`);
+        const journal = get().trash.find(j =>
+            j._id === id || j.localId === id
+        );
+        if (!journal) return;
+        const localId = journal.localId ?? journal._id;
+        if (!journal.serverId) {
+            await deleteLocalJournal(localId);
+            set({
+                trash: get().trash.filter(j => j._id !== journal._id),
+            });
+            return;
+        }
+        await updateLocalJournalMeta(localId, {
+            syncStatus: "pending_permanent_delete",
+        });
         set({
-        trash: get().trash.filter(j => j._id !== id),
+            trash: get().trash.filter(j => j._id !== journal._id),
         });
     },
     clearConflict: () => set({ conflict: null }),
     applyServerEntry: (id, serverEntry, serverVersion) => {
+        const journal = get().journals.find(j => j._id === id || j.localId === id);
+        if (!journal) return;
+        const localId = journal.localId ?? journal._id;
+        updateLocalJournal(
+            localId,
+            {
+                title: serverEntry.title ?? journal.title,
+                scriptureRef: serverEntry.scriptureRef ?? journal.scriptureRef,
+                tags: serverEntry.tags ?? journal.tags,
+                content: serverEntry.content ?? journal.content,
+                deleted: journal.deleted,
+                version: serverVersion,
+            },
+            "synced"
+        ).catch(() => {});
         set({
             conflict: null,
             journals: get().journals.map(j =>
-                j._id === id
+                j._id === journal._id
                 ? {
                     ...j,
                     title: serverEntry.title ?? j.title,
@@ -185,6 +280,7 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
                     version: serverVersion,
                     updatedAt: serverEntry.updatedAt ?? j.updatedAt,
                     createdAt: serverEntry.createdAt ?? j.createdAt,
+                    syncStatus: "synced",
                 }
                 : j
             ),
@@ -197,6 +293,7 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
                 ...payload,
                 baseVersion: serverVersion,
             });
+            await upsertJournalFromServer(updated);
             set({
                 journals: get().journals.map(j =>
                 j._id === id ? updated : j
@@ -210,12 +307,177 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
         }
     },
     replaceJournal: (entry) => {
+        upsertJournalFromServer(entry).catch(() => {});
         set({
             journals: get().journals.map(j =>
                 j._id === entry._id ? entry : j
             ),
         });
     },
-    reset: () => set({ journals: [], trash: [], saving: false, conflict: null }),
+    syncJournals: async () => {
+        set({ syncing: true, syncError: null });
+        try {
+            const token = await getOrCreateBackendToken();
+            if (!token) {
+                set({ syncing: false, isOnline: false, syncError: "Missing token" });
+                return;
+            }
+
+            const pending = await getPendingLocalJournals();
+            const conflictIds = new Set<string>();
+
+            for (const entry of pending) {
+                const localId = entry.localId ?? entry._id;
+                const serverId = entry.serverId;
+                const payload = {
+                    title: entry.title,
+                    scriptureRef: entry.scriptureRef,
+                    content: entry.content,
+                    tags: entry.tags ?? [],
+                };
+
+                if (entry.syncStatus === "pending_create") {
+                    if (entry.deleted && !serverId) {
+                        await updateLocalJournalMeta(localId, { syncStatus: "synced" });
+                        continue;
+                    }
+                    const created = await apiPost("/journals", payload);
+                    await updateLocalJournal(
+                        localId,
+                        {
+                            title: created.title,
+                            scriptureRef: created.scriptureRef,
+                            tags: created.tags,
+                            content: created.content,
+                            deleted: created.deleted,
+                            version: created.version,
+                        },
+                        "synced"
+                    );
+                    await updateLocalJournalMeta(localId, {
+                        serverId: created._id,
+                        createdAt: created.createdAt,
+                        updatedAt: created.updatedAt,
+                        lastSavedAt: created.updatedAt ?? created.createdAt,
+                    });
+                    continue;
+                }
+
+                if (entry.syncStatus === "pending_update") {
+                    if (!serverId) {
+                        const created = await apiPost("/journals", payload);
+                        await updateLocalJournal(
+                            localId,
+                            {
+                                title: created.title,
+                                scriptureRef: created.scriptureRef,
+                                tags: created.tags,
+                                content: created.content,
+                                deleted: created.deleted,
+                                version: created.version,
+                            },
+                            "synced"
+                        );
+                        await updateLocalJournalMeta(localId, {
+                            serverId: created._id,
+                            createdAt: created.createdAt,
+                            updatedAt: created.updatedAt,
+                            lastSavedAt: created.updatedAt ?? created.createdAt,
+                        });
+                        continue;
+                    }
+                    try {
+                        const updated = await apiPut(`/journals/${serverId}`, {
+                            ...payload,
+                            baseVersion: entry.version,
+                        });
+                        await upsertJournalFromServer(updated);
+                    } catch (err: any) {
+                        if (err?.status === 409 && err?.data?.error === "VERSION_CONFLICT") {
+                            await updateLocalJournalMeta(localId, { syncStatus: "conflict" });
+                            if (serverId) {
+                                conflictIds.add(serverId);
+                            }
+                            set({
+                                conflict: {
+                                    id: entry._id,
+                                    serverVersion: err.data.serverVersion,
+                                    serverEntry: err.data.serverEntry,
+                                    clientPayload: payload,
+                                },
+                            });
+                            continue;
+                        }
+                        throw err;
+                    }
+                    continue;
+                }
+
+                if (entry.syncStatus === "pending_delete") {
+                    if (!serverId) {
+                        await updateLocalJournalMeta(localId, { syncStatus: "synced" });
+                        continue;
+                    }
+                    await apiDelete(`/journals/${serverId}`);
+                    await updateLocalJournalMeta(localId, { syncStatus: "synced", deleted: true });
+                    continue;
+                }
+
+                if (entry.syncStatus === "pending_restore") {
+                    if (!serverId) {
+                        await updateLocalJournalMeta(localId, { syncStatus: "pending_create" });
+                        continue;
+                    }
+                    const restored = await apiPost(`/journals/${serverId}/restore`, {});
+                    await upsertJournalFromServer(restored);
+                    continue;
+                }
+
+                if (entry.syncStatus === "pending_permanent_delete") {
+                    if (!serverId) {
+                        await deleteLocalJournal(localId);
+                        continue;
+                    }
+                    await apiDelete(`/journals/${serverId}/permanent`);
+                    await deleteLocalJournal(localId);
+                }
+            }
+
+            const active = await apiGet("/journals");
+            const deleted = await apiGet("/journals/trash");
+            for (const entry of [...active, ...deleted]) {
+                if (conflictIds.has(entry._id)) continue;
+                await upsertJournalFromServer(entry);
+            }
+
+            const localActive = await getLocalJournals(false);
+            const localTrash = await getLocalJournals(true);
+            set({
+                journals: localActive,
+                trash: localTrash,
+                syncing: false,
+                lastSyncAt: new Date().toISOString(),
+                isOnline: true,
+            });
+        } catch (err: any) {
+            const message = err?.message ?? "Sync failed";
+            set({
+                syncing: false,
+                syncError: message,
+                isOnline: false,
+            });
+        }
+    },
+    reset: () =>
+        set({
+            journals: [],
+            trash: [],
+            saving: false,
+            conflict: null,
+            syncing: false,
+            lastSyncAt: undefined,
+            isOnline: true,
+            syncError: null,
+        }),
     
 }));

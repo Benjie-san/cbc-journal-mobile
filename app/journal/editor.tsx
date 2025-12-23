@@ -50,7 +50,7 @@ export default function JournalEditor(props: EditorProps) {
 
     const existing: JournalEntry | undefined =
         props.mode === "edit"
-            ? journals.find(j => j._id === props.id)
+            ? journals.find(j => j._id === props.id || j.localId === props.id)
             : undefined;
 
     // Prevent overwriting user typing on rerenders
@@ -222,9 +222,13 @@ export default function JournalEditor(props: EditorProps) {
 
     const refreshEntry = async () => {
         if (props.mode !== "edit") return;
+        if (!existing?.serverId) {
+            Alert.alert("Not synced yet", "This entry is only saved locally.");
+            return;
+        }
         setRefreshing(true);
         try {
-            const entry = await apiGet(`/journals/${props.id}`);
+            const entry = await apiGet(`/journals/${existing.serverId}`);
             replaceJournal(entry);
             applySnapshot({
                 title: entry.title,
@@ -263,6 +267,33 @@ export default function JournalEditor(props: EditorProps) {
         );
         setConflictVisible(false);
         clearConflict();
+    };
+
+    const formatStatus = (entry?: JournalEntry) => {
+        switch (entry?.syncStatus) {
+            case "pending_create":
+            case "pending_update":
+                return "Saved locally";
+            case "pending_delete":
+                return "Pending delete";
+            case "pending_restore":
+                return "Pending restore";
+            case "pending_permanent_delete":
+                return "Pending removal";
+            case "conflict":
+                return "Conflict";
+            default:
+                return "Synced";
+        }
+    };
+
+    const formatTime = (value?: string) => {
+        if (!value) return "";
+        try {
+            return new Date(value).toLocaleString();
+        } catch {
+            return value;
+        }
     };
 
     // ─────────────────────────────────────────────
@@ -306,9 +337,19 @@ export default function JournalEditor(props: EditorProps) {
             }
         >
             {props.mode === "edit" ? (
-                <Pressable style={styles.historyButton} onPress={openHistory}>
-                    <Text style={styles.historyText}>View History</Text>
-                </Pressable>
+                <View style={styles.headerRow}>
+                    <Pressable style={styles.historyButton} onPress={openHistory}>
+                        <Text style={styles.historyText}>View History</Text>
+                    </Pressable>
+                    <View style={styles.statusBlock}>
+                        <Text style={styles.statusText}>{formatStatus(existing)}</Text>
+                        {existing?.lastSavedAt ? (
+                            <Text style={styles.statusSubtext}>
+                                {formatTime(existing.lastSavedAt)}
+                            </Text>
+                        ) : null}
+                    </View>
+                </View>
             ) : null}
             <TextInput
                 style={styles.title}
@@ -468,15 +509,24 @@ export default function JournalEditor(props: EditorProps) {
 const styles = StyleSheet.create({
     safeArea: { flex: 1 },
     container: { padding: 16 },
+    headerRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginBottom: 12,
+        gap: 12,
+    },
     historyButton: {
         alignSelf: "flex-start",
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 10,
         backgroundColor: "#f2f2f2",
-        marginBottom: 12,
     },
     historyText: { fontWeight: "600", color: "#111" },
+    statusBlock: { alignItems: "flex-end" },
+    statusText: { fontSize: 12, color: "#555", fontWeight: "600" },
+    statusSubtext: { fontSize: 11, color: "#777", marginTop: 2 },
     title: {
         fontSize: 18,
         fontWeight: "600",

@@ -9,16 +9,13 @@ import {
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { useJournalStore } from "../../../src/store/journalStore";
-import { useAuthStore } from "../../../src/store/authStore";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function TrashScreen() {
-  const backendReady = useAuthStore((state) => state.backendReady);
   const { trash, loadTrash, restore, permanentDelete } = useJournalStore();
   const [refreshing, setRefreshing] = useState(false);
 
   const refresh = useCallback(async () => {
-    if (!backendReady) return;
     setRefreshing(true);
     try {
       await loadTrash();
@@ -27,7 +24,7 @@ export default function TrashScreen() {
     } finally {
       setRefreshing(false);
     }
-  }, [backendReady, loadTrash]);
+  }, [loadTrash]);
 
   useFocusEffect(
     useCallback(() => {

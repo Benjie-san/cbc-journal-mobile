@@ -12,10 +12,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { apiGet } from "../../src/api/client";
-import { useAuthStore } from "../../src/store/authStore";
 import { useJournalStore } from "../../src/store/journalStore";
 import { usePlanStore } from "../../src/store/planStore";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { getPlanDaysByYear, savePlanDays } from "../../src/db/localDb";
 
 type PlanDay = {
   _id: string;
@@ -50,7 +50,6 @@ const SCROLL_OFFSET = 12;
 
 export default function BRP() {
   const router = useRouter();
-  const backendReady = useAuthStore((state) => state.backendReady);
   const { journals, loadJournals } = useJournalStore();
   const selectedYear = usePlanStore((state) => state.selectedYear);
   const setSelectedYear = usePlanStore((state) => state.setSelectedYear);
@@ -77,34 +76,76 @@ export default function BRP() {
 
   const loadPlan = useCallback(
     async (isRefresh = false) => {
-      if (!backendReady) return;
       if (isRefresh) {
         setRefreshing(true);
       } else {
         setLoading(true);
       }
       setError(null);
+      let hasCache = false;
 
       try {
+        const cached = await getPlanDaysByYear(selectedYear);
+        hasCache = cached.length > 0;
+        if (hasCache) {
+          const grouped: Record<string, PlanDay[]> = {};
+          MONTHS.forEach((month) => {
+            grouped[month] = cached
+              .filter((day) => day.month === month)
+              .map((day) => ({
+                _id: `${day.year}-${day.month}-${day.date}`,
+                year: day.year,
+                month: day.month,
+                date: day.date,
+                order: day.order,
+                verse: day.verse,
+                isSermonNotes: day.isSermonNotes,
+              }));
+          });
+          setPlanByMonth(grouped);
+        }
+
         const responses = await Promise.all(
           MONTHS.map((month) =>
             apiGet(`/reading-plan/${selectedYear}/${encodeURIComponent(month)}`)
           )
         );
         const next: Record<string, PlanDay[]> = {};
+        const cacheRows: {
+          year: number;
+          month: string;
+          date: number;
+          order: number;
+          verse: string;
+          isSermonNotes: boolean;
+        }[] = [];
         MONTHS.forEach((month, index) => {
-          next[month] = responses[index] ?? [];
+          const data = responses[index] ?? [];
+          next[month] = data;
+          data.forEach((day: any) => {
+            cacheRows.push({
+              year: selectedYear,
+              month,
+              date: day.date,
+              order: day.order,
+              verse: day.verse,
+              isSermonNotes: !!day.isSermonNotes,
+            });
+          });
         });
         setPlanByMonth(next);
-        await loadJournals();
+        await savePlanDays(cacheRows);
       } catch (err: any) {
-        setError(err?.message ?? "Failed to load reading plan");
+        if (!hasCache) {
+          setError(err?.message ?? "Failed to load reading plan");
+        }
       } finally {
+        await loadJournals();
         setLoading(false);
         setRefreshing(false);
       }
     },
-    [backendReady, loadJournals, selectedYear]
+    [loadJournals, selectedYear]
   );
 
   useFocusEffect(

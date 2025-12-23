@@ -50,16 +50,17 @@
       ],
       "expo-web-browser",
       [
-      "expo-build-properties",
+        "expo-build-properties",
         {
           "ios": {
             "useFrameworks": "static",
             "podfileProperties": {
-              "use_modular_headers":true
+              "use_modular_headers": true
             }
           }
         }
-      ]
+      ],
+      "expo-sqlite"
     ],
     "experiments": {
       "typedRoutes": true,

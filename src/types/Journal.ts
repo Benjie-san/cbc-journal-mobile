@@ -16,4 +16,8 @@ export interface JournalEntry {
     deletedAt?: string | null;
     createdAt: string;
     updatedAt: string;
+    localId?: string;
+    serverId?: string;
+    syncStatus?: "synced" | "pending_create" | "pending_update" | "pending_delete" | "pending_restore" | "pending_permanent_delete" | "conflict";
+    lastSavedAt?: string;
 }
