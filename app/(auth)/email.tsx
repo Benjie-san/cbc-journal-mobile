@@ -1,15 +1,20 @@
 import { useState } from "react";
-import { View, Text, TextInput, Button, Alert } from "react-native";
+import { View, Text, TextInput, Button, Alert, StyleSheet } from "react-native";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../../src/firebase/config";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiPost } from "../../src/api/client";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTheme } from "@react-navigation/native";
 
 export default function EmailAuthScreen() {
+    const { colors, dark: isDark } = useTheme();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const inputBackground = isDark ? "#1a1f2b" : "#fff";
+    const inputBorder = isDark ? "#2f3645" : "#ccc";
+    const mutedText = isDark ? "#8e95a6" : "#777";
 
     const exchangeBackendToken = async () => {
         const user = auth.currentUser;
@@ -33,14 +38,18 @@ export default function EmailAuthScreen() {
 
 
     return (
-        <SafeAreaView style={{ flex: 1, padding: 20 }}>
-        <Text style={{ fontSize: 20, marginBottom: 10 }}>Email Login</Text>
+        <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <Text style={[styles.title, { color: colors.text }]}>Email Login</Text>
 
         <TextInput
             placeholder="Email"
             autoCapitalize="none"
             keyboardType="email-address"
-            style={{ borderWidth: 1, padding: 10, marginBottom: 10 }}
+            style={[
+                styles.input,
+                { backgroundColor: inputBackground, borderColor: inputBorder, color: colors.text },
+            ]}
+            placeholderTextColor={mutedText}
             value={email}
             onChangeText={setEmail}
         />
@@ -48,7 +57,12 @@ export default function EmailAuthScreen() {
         <TextInput
             placeholder="Password"
             secureTextEntry
-            style={{ borderWidth: 1, padding: 10, marginBottom: 20 }}
+            style={[
+                styles.input,
+                { backgroundColor: inputBackground, borderColor: inputBorder, color: colors.text },
+                styles.inputSpacing,
+            ]}
+            placeholderTextColor={mutedText}
             value={password}
             onChangeText={setPassword}
         />
@@ -57,3 +71,10 @@ export default function EmailAuthScreen() {
         </SafeAreaView>
     );
 }
+
+const styles = StyleSheet.create({
+    container: { flex: 1, padding: 20 },
+    title: { fontSize: 20, marginBottom: 10 },
+    input: { borderWidth: 1, padding: 10, marginBottom: 10, borderRadius: 8 },
+    inputSpacing: { marginBottom: 20 },
+});

@@ -17,6 +17,7 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { apiGet, apiPost } from "../../src/api/client";
 import { ACCENT_COLOR } from "../../src/theme";
+import { useTheme } from "@react-navigation/native";
 
 type EditorProps =
     | { mode: "create"; initialScriptureRef?: string }
@@ -36,6 +37,7 @@ type JournalVersion = {
 
 export default function JournalEditor(props: EditorProps) {
     const router = useRouter();
+    const { colors, dark: isDark } = useTheme();
     const {
         journals,
         createJournal,
@@ -75,6 +77,14 @@ export default function JournalEditor(props: EditorProps) {
     const [versions, setVersions] = useState<JournalVersion[]>([]);
     const [conflictVisible, setConflictVisible] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
+    const subtleText = isDark ? "#b9c0cf" : "#555";
+    const mutedText = isDark ? "#8e95a6" : "#777";
+    const inputBackground = isDark ? "#1a1f2b" : "#fff";
+    const inputBorder = isDark ? "#2f3645" : "#ccc";
+    const chipBackground = isDark ? "#1f2430" : "#f2f2f2";
+    const modalBackground = isDark ? "#151a24" : "#fff";
+    const dividerColor = isDark ? "#2a3142" : "#eee";
+    const disabledAction = isDark ? "#2a3d6b" : "#9db5ee";
 
     useEffect(() => {
         if (props.mode !== "edit") return;
@@ -328,9 +338,9 @@ export default function JournalEditor(props: EditorProps) {
     };
 
     return (
-        <SafeAreaView style={styles.safeArea}>
+        <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
         <ScrollView
-            contentContainerStyle={styles.container}
+            contentContainerStyle={[styles.container, { backgroundColor: colors.background }]}
             refreshControl={
                 props.mode === "edit" ? (
                     <RefreshControl
@@ -342,13 +352,20 @@ export default function JournalEditor(props: EditorProps) {
         >
             {props.mode === "edit" ? (
                 <View style={styles.headerRow}>
-                    <Pressable style={styles.historyButton} onPress={openHistory}>
-                        <Text style={styles.historyText}>View History</Text>
+                    <Pressable
+                        style={[styles.historyButton, { backgroundColor: chipBackground }]}
+                        onPress={openHistory}
+                    >
+                        <Text style={[styles.historyText, { color: colors.text }]}>
+                            View History
+                        </Text>
                     </Pressable>
                     <View style={styles.statusBlock}>
-                        <Text style={styles.statusText}>{formatStatus(existing)}</Text>
+                        <Text style={[styles.statusText, { color: subtleText }]}>
+                            {formatStatus(existing)}
+                        </Text>
                         {existing?.lastSavedAt ? (
-                            <Text style={styles.statusSubtext}>
+                            <Text style={[styles.statusSubtext, { color: mutedText }]}>
                                 {formatTime(existing.lastSavedAt)}
                             </Text>
                         ) : null}
@@ -356,54 +373,106 @@ export default function JournalEditor(props: EditorProps) {
                 </View>
             ) : null}
             <TextInput
-                style={styles.title}
+                style={[
+                    styles.title,
+                    { color: colors.text, borderBottomColor: inputBorder },
+                ]}
                 placeholder="Title"
+                placeholderTextColor={mutedText}
                 value={title}
                 onChangeText={onChangeTitle}
             />
 
             <TextInput
-                style={styles.scriptureRef}
+                style={[
+                    styles.scriptureRef,
+                    {
+                        backgroundColor: inputBackground,
+                        borderColor: inputBorder,
+                        color: colors.text,
+                    },
+                ]}
                 placeholder="Scripture reference"
+                placeholderTextColor={mutedText}
                 value={scriptureRef}
                 onChangeText={onChangeScriptureRef}
             />
 
             <TextInput
-                style={styles.tags}
+                style={[
+                    styles.tags,
+                    {
+                        backgroundColor: inputBackground,
+                        borderColor: inputBorder,
+                        color: colors.text,
+                    },
+                ]}
                 placeholder="Tags (comma-separated)"
+                placeholderTextColor={mutedText}
                 value={tagsText}
                 onChangeText={onChangeTags}
                 autoCapitalize="none"
             />
 
             <TextInput
-                style={styles.textarea}
+                style={[
+                    styles.textarea,
+                    {
+                        backgroundColor: inputBackground,
+                        borderColor: inputBorder,
+                        color: colors.text,
+                    },
+                ]}
                 placeholder="Question"
+                placeholderTextColor={mutedText}
                 value={content.question}
                 onChangeText={v => onChangeField("question", v)}
                 multiline
             />
 
             <TextInput
-                style={styles.textarea}
+                style={[
+                    styles.textarea,
+                    {
+                        backgroundColor: inputBackground,
+                        borderColor: inputBorder,
+                        color: colors.text,
+                    },
+                ]}
                 placeholder="Observation"
+                placeholderTextColor={mutedText}
                 value={content.observation}
                 onChangeText={v => onChangeField("observation", v)}
                 multiline
             />
 
             <TextInput
-                style={styles.textarea}
+                style={[
+                    styles.textarea,
+                    {
+                        backgroundColor: inputBackground,
+                        borderColor: inputBorder,
+                        color: colors.text,
+                    },
+                ]}
                 placeholder="Application"
+                placeholderTextColor={mutedText}
                 value={content.application}
                 onChangeText={v => onChangeField("application", v)}
                 multiline
             />
 
             <TextInput
-                style={styles.textarea}
+                style={[
+                    styles.textarea,
+                    {
+                        backgroundColor: inputBackground,
+                        borderColor: inputBorder,
+                        color: colors.text,
+                    },
+                ]}
                 placeholder="Prayer"
+                placeholderTextColor={mutedText}
                 value={content.prayer}
                 onChangeText={v => onChangeField("prayer", v)}
                 multiline
@@ -423,22 +492,32 @@ export default function JournalEditor(props: EditorProps) {
             onRequestClose={() => setHistoryOpen(false)}
         >
             <View style={styles.modalBackdrop}>
-                <View style={styles.modalCard}>
-                    <Text style={styles.modalTitle}>Version History</Text>
+                <View style={[styles.modalCard, { backgroundColor: modalBackground }]}>
+                    <Text style={[styles.modalTitle, { color: colors.text }]}>
+                        Version History
+                    </Text>
                     {historyLoading ? (
-                        <Text style={styles.modalSubtle}>Loading...</Text>
+                        <Text style={[styles.modalSubtle, { color: mutedText }]}>
+                            Loading...
+                        </Text>
                     ) : versions.length ? (
                         <ScrollView style={styles.modalList}>
                             {versions.map((version) => (
-                                <View key={version._id} style={styles.versionRow}>
+                                <View
+                                    key={version._id}
+                                    style={[styles.versionRow, { borderTopColor: dividerColor }]}
+                                >
                                     <View style={styles.versionInfo}>
-                                        <Text style={styles.versionTitle}>
+                                        <Text style={[styles.versionTitle, { color: colors.text }]}>
                                             Version {version.version}
                                         </Text>
-                                        <Text style={styles.versionMeta}>
+                                        <Text style={[styles.versionMeta, { color: mutedText }]}>
                                             {new Date(version.createdAt).toLocaleString()}
                                         </Text>
-                                        <Text style={styles.versionSnippet} numberOfLines={1}>
+                                        <Text
+                                            style={[styles.versionSnippet, { color: subtleText }]}
+                                            numberOfLines={1}
+                                        >
                                             {version.snapshot?.title || "Untitled Entry"}
                                         </Text>
                                     </View>
@@ -446,7 +525,7 @@ export default function JournalEditor(props: EditorProps) {
                                         style={[
                                             styles.versionAction,
                                             existing?.version === version.version &&
-                                                styles.versionActionDisabled,
+                                                { backgroundColor: disabledAction },
                                         ]}
                                         onPress={() => restoreVersion(version)}
                                         disabled={existing?.version === version.version}
@@ -459,7 +538,9 @@ export default function JournalEditor(props: EditorProps) {
                             ))}
                         </ScrollView>
                     ) : (
-                        <Text style={styles.modalSubtle}>No history yet.</Text>
+                        <Text style={[styles.modalSubtle, { color: mutedText }]}>
+                            No history yet.
+                        </Text>
                     )}
                     <Pressable
                         style={styles.modalClose}
@@ -477,20 +558,26 @@ export default function JournalEditor(props: EditorProps) {
             onRequestClose={() => setConflictVisible(false)}
         >
             <View style={styles.modalBackdrop}>
-                <View style={styles.modalCard}>
-                    <Text style={styles.modalTitle}>Version Conflict</Text>
-                    <Text style={styles.modalSubtle}>
+                <View style={[styles.modalCard, { backgroundColor: modalBackground }]}>
+                    <Text style={[styles.modalTitle, { color: colors.text }]}>
+                        Version Conflict
+                    </Text>
+                    <Text style={[styles.modalSubtle, { color: mutedText }]}>
                         This entry was updated elsewhere. Choose which version to keep.
                     </Text>
                     <View style={styles.conflictSection}>
-                        <Text style={styles.conflictLabel}>Server version</Text>
-                        <Text style={styles.conflictText}>
+                        <Text style={[styles.conflictLabel, { color: mutedText }]}>
+                            Server version
+                        </Text>
+                        <Text style={[styles.conflictText, { color: colors.text }]}>
                             {conflictForEntry?.serverEntry?.title || "Untitled Entry"}
                         </Text>
                     </View>
                     <View style={styles.conflictSection}>
-                        <Text style={styles.conflictLabel}>Your version</Text>
-                        <Text style={styles.conflictText}>
+                        <Text style={[styles.conflictLabel, { color: mutedText }]}>
+                            Your version
+                        </Text>
+                        <Text style={[styles.conflictText, { color: colors.text }]}>
                             {title || "Untitled Entry"}
                         </Text>
                     </View>
@@ -525,12 +612,11 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 10,
-        backgroundColor: "#f2f2f2",
     },
-    historyText: { fontWeight: "600", color: "#111" },
+    historyText: { fontWeight: "600" },
     statusBlock: { alignItems: "flex-end" },
-    statusText: { fontSize: 12, color: "#555", fontWeight: "600" },
-    statusSubtext: { fontSize: 11, color: "#777", marginTop: 2 },
+    statusText: { fontSize: 12, fontWeight: "600" },
+    statusSubtext: { fontSize: 11, marginTop: 2 },
     title: {
         fontSize: 18,
         fontWeight: "600",
@@ -540,21 +626,18 @@ const styles = StyleSheet.create({
     },
     scriptureRef: {
         borderWidth: 1,
-        borderColor: "#ccc",
         borderRadius: 8,
         padding: 10,
         marginBottom: 12,
     },
     tags: {
         borderWidth: 1,
-        borderColor: "#ccc",
         borderRadius: 8,
         padding: 10,
         marginBottom: 12,
     },
     textarea: {
         borderWidth: 1,
-        borderColor: "#ccc",
         borderRadius: 8,
         padding: 12,
         marginBottom: 12,
@@ -568,35 +651,31 @@ const styles = StyleSheet.create({
         padding: 20,
     },
     modalCard: {
-        backgroundColor: "#fff",
         borderRadius: 12,
         padding: 16,
         maxHeight: "80%",
     },
     modalTitle: { fontSize: 16, fontWeight: "600", marginBottom: 8 },
-    modalSubtle: { color: "#666", marginBottom: 12 },
+    modalSubtle: { marginBottom: 12 },
     modalList: { marginBottom: 12 },
     versionRow: {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
         borderTopWidth: 1,
-        borderTopColor: "#eee",
         paddingVertical: 10,
     },
     versionInfo: { flex: 1, marginRight: 12 },
-    versionTitle: { fontWeight: "600", color: "#111" },
-    versionMeta: { color: "#777", fontSize: 12, marginTop: 2 },
-    versionSnippet: { color: "#444", marginTop: 4 },
+    versionTitle: { fontWeight: "600" },
+    versionMeta: { fontSize: 12, marginTop: 2 },
+    versionSnippet: { marginTop: 4 },
     versionAction: {
         paddingHorizontal: 10,
         paddingVertical: 6,
         borderRadius: 8,
         backgroundColor: ACCENT_COLOR,
     },
-    versionActionDisabled: {
-        backgroundColor: "#9db5ee",
-    },
+    versionActionDisabled: {},
     versionActionText: { color: "#fff", fontWeight: "600" },
     modalClose: {
         alignSelf: "flex-end",
@@ -605,8 +684,8 @@ const styles = StyleSheet.create({
     },
     modalCloseText: { color: ACCENT_COLOR, fontWeight: "600" },
     conflictSection: { marginBottom: 10 },
-    conflictLabel: { color: "#666", fontSize: 12, marginBottom: 4 },
-    conflictText: { fontWeight: "600", color: "#111" },
+    conflictLabel: { fontSize: 12, marginBottom: 4 },
+    conflictText: { fontWeight: "600" },
     conflictActions: { flexDirection: "row", gap: 8, marginTop: 8 },
     conflictButton: {
         flex: 1,

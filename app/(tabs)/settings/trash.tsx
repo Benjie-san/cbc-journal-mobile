@@ -7,13 +7,16 @@ import {
   Text,
   View,
 } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useTheme } from "@react-navigation/native";
 import { useJournalStore } from "../../../src/store/journalStore";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function TrashScreen() {
+  const { colors, dark: isDark } = useTheme();
   const { trash, loadTrash, restore, permanentDelete } = useJournalStore();
   const [refreshing, setRefreshing] = useState(false);
+  const subtleText = isDark ? "#b9c0cf" : "#555";
+  const mutedText = isDark ? "#8e95a6" : "#888";
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
@@ -71,7 +74,7 @@ export default function TrashScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <FlatList
         data={trash}
         keyExtractor={(item) => item._id}
@@ -79,7 +82,7 @@ export default function TrashScreen() {
         refreshing={refreshing}
         onRefresh={refresh}
         ListEmptyComponent={
-          <Text style={styles.empty}>Trash is empty.</Text>
+          <Text style={[styles.empty, { color: mutedText }]}>Trash is empty.</Text>
         }
         renderItem={({ item }) => {
           const preview =
@@ -91,14 +94,14 @@ export default function TrashScreen() {
 
           return (
             <Pressable
-              style={styles.card}
+              style={[styles.card, { backgroundColor: colors.card }]}
               onPress={() => confirmRestore(item._id)}
               onLongPress={() => confirmDelete(item._id)}
             >
-              <Text style={styles.title}>
+              <Text style={[styles.title, { color: colors.text }]}>
                 {item.title || "Untitled Entry"}
               </Text>
-              <Text style={styles.preview}>
+              <Text style={[styles.preview, { color: subtleText }]}>
                 {preview ? preview.slice(0, 100) : "No content."}
               </Text>
             </Pressable>
@@ -115,10 +118,9 @@ const styles = StyleSheet.create({
   card: {
     padding: 16,
     borderRadius: 12,
-    backgroundColor: "#f2f2f2",
     marginBottom: 12,
   },
   title: { fontSize: 16, fontWeight: "600" },
-  preview: { marginTop: 6, color: "#555" },
-  empty: { textAlign: "center", marginTop: 40, color: "#888" },
+  preview: { marginTop: 6 },
+  empty: { textAlign: "center", marginTop: 40 },
 });
