@@ -7,8 +7,6 @@ import {
   FlatList,
   Pressable,
   StyleSheet,
-  TextInput,
-  ScrollView,
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import { useJournalStore } from "../../src/store/journalStore";
@@ -20,6 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getPlanDaysByYear, savePlanDays } from "../../src/db/localDb";
 import { ACCENT_COLOR } from "../../src/theme";
+import { useStreakStore } from "../../src/store/streakStore";
 
 const PLAN_YEARS = [2024, 2025];
 const MONTHS = [
@@ -53,12 +52,11 @@ export default function JournalListScreen() {
   } = useJournalStore();
   const selectedYear = usePlanStore((state) => state.selectedYear);
   const hydratePlanYear = usePlanStore((state) => state.hydrate);
+  const currentStreak = useStreakStore((state) => state.currentStreak);
   const currentYear = new Date().getFullYear();
   const defaultYear = PLAN_YEARS.includes(currentYear)
     ? currentYear
     : PLAN_YEARS[PLAN_YEARS.length - 1];
-  const [query, setQuery] = useState("");
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [todayPassage, setTodayPassage] = useState<{
     verse: string;
     month: string;
@@ -78,8 +76,6 @@ export default function JournalListScreen() {
   const subtleText = isDark ? "#b9c0cf" : "#555";
   const mutedText = isDark ? "#8e95a6" : "#777";
   const chipBackground = isDark ? "#232936" : "#fff";
-  const inputBackground = isDark ? "#1a1f2b" : "#fff";
-  const inputBorder = isDark ? "#2f3645" : "#ccc";
 
   useFocusEffect(
     useCallback(() => {
@@ -167,56 +163,6 @@ export default function JournalListScreen() {
     }, [defaultYear, hydratePlanYear, loadTodayPassage])
   );
 
-  const allTags = useMemo(() => {
-    const set = new Set<string>();
-    journals.forEach((entry) => {
-      (entry.tags ?? []).forEach((tag) => {
-        const cleaned = tag.trim();
-        if (cleaned) set.add(cleaned);
-      });
-    });
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [journals]);
-
-  const filteredJournals = useMemo(() => {
-    let data = journals;
-    const q = query.trim().toLowerCase();
-    if (q) {
-      data = data.filter((entry) => {
-        const parts = [
-          entry.title,
-          entry.scriptureRef,
-          entry.content?.question,
-          entry.content?.observation,
-          entry.content?.application,
-          entry.content?.prayer,
-          ...(entry.tags ?? []),
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-        return parts.includes(q);
-      });
-    }
-    if (selectedTags.length) {
-      const selected = selectedTags.map((tag) => tag.toLowerCase());
-      data = data.filter((entry) => {
-        const entryTags = (entry.tags ?? []).map((tag) =>
-          tag.toLowerCase()
-        );
-        return selected.some((tag) => entryTags.includes(tag));
-      });
-    }
-    return data;
-  }, [journals, query, selectedTags]);
-
-  const toggleTag = (tag: string) => {
-    setSelectedTags((prev) =>
-      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
-    );
-  };
-
-  const clearTags = () => setSelectedTags([]);
 
   const findLatestEntry = useCallback(
     (verse: string) => {
@@ -408,18 +354,26 @@ export default function JournalListScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <FlatList
-        data={filteredJournals}
+        data={journals}
         keyExtractor={(item) => item._id}
         contentContainerStyle={{ paddingBottom: 100 }}
         refreshing={syncing}
         onRefresh={syncJournals}
         ListEmptyComponent={
           <Text style={[styles.empty, { color: mutedText }]}>
-            {journals.length ? "No matching entries." : "No journal entries yet."}
+            No journal entries yet.
           </Text>
         }
         ListHeaderComponent={
           <View style={[styles.header]}>
+            <View style={styles.streakRow}>
+              <View style={[styles.streakPill, { backgroundColor: colors.card }]}>
+                <Ionicons name="flame-outline" size={18} color={ACCENT_COLOR} />
+                <Text style={[styles.streakValue, { color: colors.text }]}>
+                  {currentStreak}
+                </Text>
+              </View>
+            </View>
             <View style={[styles.todayCard, { backgroundColor: colors.card }]}>
               <View style={styles.todayRow}>
                 <View style={styles.todayInfo}>
@@ -485,73 +439,7 @@ export default function JournalListScreen() {
                 </Text>
               </Animated.View>
             ) : null}
-            <View style={{ paddingLeft: 10, paddingRight: 10, marginTop: 5 }}>
-            <TextInput
-              style={[
-                styles.search,
-                {
-                  backgroundColor: inputBackground,
-                  borderColor: inputBorder,
-                  color: colors.text,
-                },
-              ]}
-              placeholder="Search entries"
-              placeholderTextColor={mutedText}
-              value={query}
-              onChangeText={setQuery}
-              autoCapitalize="none"
-            />
-            {allTags.length ? (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.tagList}
-              >
-                <Pressable
-                  style={[
-                    styles.tagChip,
-                    { backgroundColor: isDark ? "#1f2430" : "#f2f2f2" },
-                    selectedTags.length === 0 && styles.tagChipActive,
-                  ]}
-                  onPress={clearTags}
-                >
-                  <Text
-                    style={[
-                      styles.tagText,
-                      { color: isDark ? "#e0e6f5" : "#333" },
-                      selectedTags.length === 0 && styles.tagTextActive,
-                    ]}
-                  >
-                    All
-                  </Text>
-                </Pressable>
-                {allTags.map((tag) => {
-                  const active = selectedTags.includes(tag);
-                  return (
-                    <Pressable
-                      key={tag}
-                      style={[
-                        styles.tagChip,
-                        { backgroundColor: isDark ? "#1f2430" : "#f2f2f2" },
-                        active && styles.tagChipActive,
-                      ]}
-                      onPress={() => toggleTag(tag)}
-                    >
-                      <Text
-                        style={[
-                          styles.tagText,
-                          { color: isDark ? "#e0e6f5" : "#333" },
-                          active && styles.tagTextActive,
-                        ]}
-                      >
-                        {tag}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            ) : null}
-            </View>
+            <View style={{ marginTop: 6 }} />
           </View>
         }
         renderItem={({ item }) => (
@@ -616,6 +504,18 @@ export default function JournalListScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, },
   header: { marginBottom: 12, gap: 10 },
+  streakRow: {
+    alignItems: "flex-end",
+  },
+  streakPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  streakValue: { fontSize: 16, fontWeight: "700" },
   todayCard: {
     padding: 14,
     gap: 8,
@@ -656,21 +556,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     textAlign: "center",
   },
-  search: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  tagList: { gap: 8, marginTop: 10,paddingBottom: 4},
-  tagChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-  },
-  tagChipActive: { backgroundColor: ACCENT_COLOR },
-  tagText: { fontSize: 12, fontWeight: "600" },
-  tagTextActive: { color: "#fff" },
   card: {
     padding: 16,
     borderRadius: 12,

@@ -13,6 +13,7 @@ import {
     updateLocalJournalMeta,
     upsertJournalFromServer,
 } from "../db/localDb";
+import { useStreakStore } from "./streakStore";
 
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
 const SYNC_TIMEOUT_MS = 2500;
@@ -87,6 +88,7 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
             await initDb();
             const local = await getLocalJournals(false);
             set({ journals: local });
+            await useStreakStore.getState().recalculateFromEntries(local);
         } catch (err) {
             console.error("Failed to load local journals:", err);
             set({ journals: [] });
@@ -107,6 +109,7 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
     createJournal: async (payload) => {
         const entry = await createLocalJournal(payload);
         set({ journals: [entry, ...get().journals] });
+        await useStreakStore.getState().recordEntry(entry.createdAt);
 
         try {
             await get().syncJournals();
@@ -485,6 +488,7 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
                 lastSyncAt: new Date().toISOString(),
                 isOnline: true,
             });
+            await useStreakStore.getState().recalculateFromEntries(localActive);
         } catch (err: any) {
             const message = err?.message ?? "Sync failed";
             set({

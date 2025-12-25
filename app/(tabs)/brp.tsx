@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useTheme } from "@react-navigation/native";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { apiGet } from "../../src/api/client";
 import { useJournalStore } from "../../src/store/journalStore";
 import { usePlanStore } from "../../src/store/planStore";
@@ -51,6 +51,8 @@ const PLAN_TIMEOUT_MS = 2500;
 
 export default function BRP() {
   const router = useRouter();
+  const { picker } = useLocalSearchParams<{ picker?: string }>();
+  const isPicker = picker === "1" || picker === "true";
   const { colors, dark: isDark } = useTheme();
   const { journals, loadJournals } = useJournalStore();
   const selectedYear = usePlanStore((state) => state.selectedYear);
@@ -201,16 +203,26 @@ export default function BRP() {
   const openEditor = (verse: string) => {
     const existing = findLatestEntry(verse);
     if (existing?._id) {
-      router.push({
+      const target = {
         pathname: "/journal/edit",
         params: { id: existing._id },
-      });
+      };
+      if (isPicker) {
+        router.replace(target);
+      } else {
+        router.push(target);
+      }
       return;
     }
-    router.push({
+    const target = {
       pathname: "/journal/create",
       params: { scriptureRef: verse },
-    });
+    };
+    if (isPicker) {
+      router.replace(target);
+    } else {
+      router.push(target);
+    }
   };
 
   const scrollToMonth = useCallback((month: string, animated = true) => {

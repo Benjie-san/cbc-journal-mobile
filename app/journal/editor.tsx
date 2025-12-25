@@ -18,6 +18,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { apiGet, apiPost } from "../../src/api/client";
 import { ACCENT_COLOR } from "../../src/theme";
 import { useTheme } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
 
 type EditorProps =
     | { mode: "create"; initialScriptureRef?: string }
@@ -307,6 +308,14 @@ export default function JournalEditor(props: EditorProps) {
         }
     };
 
+    const handlePickFromBrp = () => {
+        if (props.mode !== "create") return;
+        router.replace({
+            pathname: "/(tabs)/brp",
+            params: { picker: "1" },
+        });
+    };
+
     // ─────────────────────────────────────────────
   // Manual save (Create OR Edit)
   // ─────────────────────────────────────────────
@@ -383,20 +392,36 @@ export default function JournalEditor(props: EditorProps) {
                 onChangeText={onChangeTitle}
             />
 
-            <TextInput
-                style={[
-                    styles.scriptureRef,
-                    {
-                        backgroundColor: inputBackground,
-                        borderColor: inputBorder,
-                        color: colors.text,
-                    },
-                ]}
-                placeholder="Scripture reference"
-                placeholderTextColor={mutedText}
-                value={scriptureRef}
-                onChangeText={onChangeScriptureRef}
-            />
+            <View style={styles.scriptureRow}>
+                <TextInput
+                    style={[
+                        styles.scriptureRef,
+                        {
+                            backgroundColor: inputBackground,
+                            borderColor: inputBorder,
+                            color: colors.text,
+                            flex: 1,
+                            marginBottom: 0,
+                        },
+                    ]}
+                    placeholder="Scripture reference"
+                    placeholderTextColor={mutedText}
+                    value={scriptureRef}
+                    onChangeText={onChangeScriptureRef}
+                />
+
+                {props.mode === "create" ? (
+                    <Pressable
+                        style={styles.brpInline}
+                        onPress={handlePickFromBrp}
+                        accessibilityRole="button"
+                        accessibilityLabel="Pick from BRP"
+                    >
+                        <Ionicons name="book-outline" size={16} color="#fff" />
+                        <Text style={styles.brpInlineText}>BRP</Text>
+                    </Pressable>
+                ) : null}
+            </View>
 
             <TextInput
                 style={[
@@ -630,6 +655,22 @@ const styles = StyleSheet.create({
         padding: 10,
         marginBottom: 12,
     },
+    scriptureRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        marginBottom: 12,
+    },
+    brpInline: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 8,
+        backgroundColor: ACCENT_COLOR,
+    },
+    brpInlineText: { color: "#fff", fontWeight: "600", fontSize: 12 },
     tags: {
         borderWidth: 1,
         borderRadius: 8,

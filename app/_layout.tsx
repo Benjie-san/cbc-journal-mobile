@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Stack, router, useSegments } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { Platform } from "react-native";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { auth } from "../src/firebase/config";
@@ -10,6 +11,8 @@ import { useAuthStore } from "../src/store/authStore";
 import { ThemeProvider } from "@react-navigation/native";
 import { darkTheme, lightTheme } from "../src/theme";
 import { useThemeStore } from "../src/store/themeStore";
+import { useStreakStore } from "../src/store/streakStore";
+import * as Notifications from "expo-notifications";
 
 export default function RootLayout() {
   const [firebaseReady, setFirebaseReady] = useState(false);
@@ -20,14 +23,33 @@ export default function RootLayout() {
   const resetAuth = useAuthStore((state) => state.reset);
   const theme = useThemeStore((state) => state.theme);
   const hydrateTheme = useThemeStore((state) => state.hydrate);
+  const hydrateStreak = useStreakStore((state) => state.hydrate);
   const segments = useSegments();
   const inAuthGroup = segments[0] === "(auth)";
   const isRoot = segments.length === 0 || segments[0] === "index";
   const OFFLINE_TIMEOUT_MS = 1500;
 
   useEffect(() => {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+      }),
+    });
+    if (Platform.OS === "android") {
+      Notifications.setNotificationChannelAsync("default", {
+        name: "Default",
+        importance: Notifications.AndroidImportance.DEFAULT,
+      }).catch(() => {});
+    }
+  }, []);
+
+  useEffect(() => {
     hydrateTheme();
-  }, [hydrateTheme]);
+    hydrateStreak();
+  }, [hydrateTheme, hydrateStreak]);
 
   useEffect(() => {
     const exchangeBackendToken = async (firebaseUser: User) => {
@@ -85,6 +107,7 @@ export default function RootLayout() {
         const me = await apiGet("/me", true, OFFLINE_TIMEOUT_MS);
         console.log("SESSION RESTORED, ME:", me);
 
+        await useStreakStore.getState().bootstrapFromServer(me);
         setBackendReady(true);
         if (inAuthGroup || isRoot) {
           router.replace("/(tabs)");
@@ -95,7 +118,8 @@ export default function RootLayout() {
           console.log("Backend session invalid -> retry /auth");
           try {
             await exchangeBackendToken(user);
-            await apiGet("/me", true, OFFLINE_TIMEOUT_MS);
+            const me = await apiGet("/me", true, OFFLINE_TIMEOUT_MS);
+            await useStreakStore.getState().bootstrapFromServer(me);
             setBackendReady(true);
             if (inAuthGroup || isRoot) {
               router.replace("/(tabs)");
