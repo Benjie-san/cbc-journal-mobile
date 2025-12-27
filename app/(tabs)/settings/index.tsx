@@ -15,7 +15,6 @@ import { useReminderStore } from "../../../src/store/reminderStore";
 import { useStreakStore } from "../../../src/store/streakStore";
 import { clearLocalJournals } from "../../../src/db/localDb";
 import { useEffect, useState } from "react";
-import * as Notifications from "expo-notifications";
 
 export default function Settings() {
   const resetStore = useJournalStore((state) => state.reset);
@@ -28,7 +27,6 @@ export default function Settings() {
   const reminderEnabled = useReminderStore((state) => state.enabled);
   const reminderHour = useReminderStore((state) => state.hour);
   const reminderMinute = useReminderStore((state) => state.minute);
-  const reminderId = useReminderStore((state) => state.notificationId);
   const setReminderEnabled = useReminderStore((state) => state.setEnabled);
   const setReminderTime = useReminderStore((state) => state.setTime);
   const hydrateReminder = useReminderStore((state) => state.hydrate);
@@ -87,134 +85,9 @@ export default function Settings() {
     const baseHour = hour % 12;
     const hour24 = isPm ? baseHour + 12 : baseHour;
     await setReminderTime(hour24, minute);
+    Alert.alert("Saved", "Reminder time updated.");
   };
 
-  const handleTestReminder = async () => {
-    const perms = await Notifications.getPermissionsAsync();
-    if (!perms.granted) {
-      const request = await Notifications.requestPermissionsAsync();
-      if (!request.granted) {
-        Alert.alert(
-          "Notifications disabled",
-          "Enable notifications in system settings to use reminders."
-        );
-        return;
-      }
-    }
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: "Journal Reminder (Test)",
-        body: "This is a test notification.",
-      },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-        seconds: 5,
-        repeats: false,
-        channelId: "default",
-      },
-    });
-    Alert.alert("Test scheduled", "Background the app to see it in 5 seconds.");
-  };
-
-  const formatTriggerTime = (trigger: Notifications.NotificationTrigger | null) => {
-    if (!trigger || typeof trigger !== "object") return "Unknown";
-    if ("date" in trigger) {
-      const rawDate = (trigger as any).date;
-      const dateVal = rawDate instanceof Date ? rawDate : new Date(rawDate);
-      if (!Number.isNaN(dateVal.getTime())) {
-        return dateVal.toLocaleString();
-      }
-    }
-    if ("value" in trigger) {
-      const rawValue = Number((trigger as any).value);
-      if (Number.isFinite(rawValue)) {
-        const dateVal = new Date(rawValue);
-        if (!Number.isNaN(dateVal.getTime())) {
-          return dateVal.toLocaleString();
-        }
-      }
-    }
-    if ("hour" in trigger && "minute" in trigger) {
-      const hour = Number(trigger.hour);
-      const minute = Number(trigger.minute);
-      if (!Number.isFinite(hour) || !Number.isFinite(minute)) return "Unknown";
-      const isPmTime = hour >= 12;
-      const hour12 = hour % 12 || 12;
-      const minuteText = `${minute}`.padStart(2, "0");
-      return `${hour12}:${minuteText} ${isPmTime ? "PM" : "AM"}`;
-    }
-    return "Unknown";
-  };
-
-  const handleShowScheduled = async () => {
-    if (!reminderEnabled) {
-      Alert.alert("Reminder is off", "Turn it on to schedule notifications.");
-      return;
-    }
-    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
-    if (!scheduled.length) {
-      Alert.alert("No reminders scheduled");
-      return;
-    }
-    const byId = reminderId
-      ? scheduled.find((item) => item.identifier === reminderId)
-      : null;
-    const daily = scheduled.find(
-      (item) =>
-        item.trigger &&
-        typeof item.trigger === "object" &&
-        "type" in item.trigger &&
-        item.trigger.type === Notifications.SchedulableTriggerInputTypes.DAILY
-    );
-    const oneOff = scheduled.find((item) => {
-      if (!item.trigger || typeof item.trigger !== "object") return false;
-      if ("type" in item.trigger) {
-        return item.trigger.type === Notifications.SchedulableTriggerInputTypes.DATE;
-      }
-      return "date" in item.trigger;
-    });
-    const target = byId ?? oneOff ?? daily ?? scheduled[0];
-    const timeText = formatTriggerTime(target.trigger ?? null);
-    const now = new Date();
-    const next = new Date();
-    next.setHours(reminderHour, reminderMinute, 0, 0);
-    if (next <= now) {
-      next.setDate(next.getDate() + 1);
-    }
-    const dayLabel =
-      next.toDateString() === now.toDateString()
-        ? "Today"
-        : next.toDateString() ===
-          new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toDateString()
-        ? "Tomorrow"
-        : next.toLocaleDateString();
-    const nextTime = next.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-
-    const lines = [
-      `Trigger time: ${timeText}`,
-      `Next occurrence: ${dayLabel} at ${nextTime}`,
-    ];
-    lines.push(`Scheduled count: ${scheduled.length}`);
-    scheduled.forEach((item, index) => {
-      const triggerType =
-        item.trigger && typeof item.trigger === "object" && "type" in item.trigger
-          ? String((item.trigger as any).type)
-          : "unknown";
-      const triggerDetails =
-        item.trigger && typeof item.trigger === "object"
-          ? JSON.stringify(item.trigger)
-          : String(item.trigger);
-      lines.push(`${index + 1}. ${triggerType} ${triggerDetails}`);
-    });
-    if (oneOff?.trigger && typeof oneOff.trigger === "object" && "date" in oneOff.trigger) {
-      const rawDate = (oneOff.trigger as any).date;
-      const dateVal = rawDate instanceof Date ? rawDate : new Date(rawDate);
-      if (!Number.isNaN(dateVal.getTime())) {
-        lines.push(`One-off trigger: ${dateVal.toLocaleString()}`);
-      }
-    }
-    Alert.alert("Scheduled reminder", lines.join("\n"));
-  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -322,27 +195,6 @@ export default function Settings() {
             <Text style={styles.saveButtonText}>Save</Text>
           </Pressable>
         </View>
-        <View style={styles.testRow}>
-          <Pressable
-            style={[styles.testButton, { borderColor: colors.border }]}
-            onPress={handleTestReminder}
-          >
-            <Text style={[styles.testButtonText, { color: colors.text }]}>
-              Test now
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[styles.testButton, { borderColor: colors.border }]}
-            onPress={handleShowScheduled}
-          >
-            <Text style={[styles.testButtonText, { color: colors.text }]}>
-              Show schedule
-            </Text>
-          </Pressable>
-          <Text style={[styles.testHint, { color: colors.border }]}>
-            Background the app to see it.
-          </Text>
-        </View>
       </View>
       <View style={[styles.row, { backgroundColor: colors.card }]}>
         <View style={styles.rowLeft}>
@@ -363,6 +215,32 @@ export default function Settings() {
         <View style={styles.rowLeft}>
           <Ionicons name="trash-outline" size={20} color={colors.text} />
           <Text style={[styles.rowText, { color: colors.text }]}>Trash</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={colors.border} />
+      </Pressable>
+      <Pressable
+        style={[styles.row, { backgroundColor: colors.card }]}
+        onPress={() => router.push("/(tabs)/settings/tutorial")}
+      >
+        <View style={styles.rowLeft}>
+          <Ionicons name="book-outline" size={20} color={colors.text} />
+          <Text style={[styles.rowText, { color: colors.text }]}>
+            Tutorial
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={colors.border} />
+      </Pressable>
+      <Pressable
+        style={[styles.row, { backgroundColor: colors.card }]}
+        onPress={() => router.push("/(tabs)/settings/about")}
+      >
+        <View style={styles.rowLeft}>
+          <Ionicons
+            name="information-circle-outline"
+            size={20}
+            color={colors.text}
+          />
+          <Text style={[styles.rowText, { color: colors.text }]}>About</Text>
         </View>
         <Ionicons name="chevron-forward" size={20} color={colors.border} />
       </Pressable>
@@ -437,18 +315,4 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   saveButtonText: { color: "#fff", fontWeight: "600", fontSize: 12 },
-  testRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 12,
-  },
-  testButton: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  testButtonText: { fontSize: 12, fontWeight: "600" },
-  testHint: { fontSize: 12 },
 });

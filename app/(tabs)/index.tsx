@@ -357,6 +357,7 @@ export default function JournalListScreen() {
         data={journals}
         keyExtractor={(item) => item._id}
         contentContainerStyle={{ paddingBottom: 100 }}
+        showsVerticalScrollIndicator={false}
         refreshing={syncing}
         onRefresh={syncJournals}
         ListEmptyComponent={

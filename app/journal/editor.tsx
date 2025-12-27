@@ -21,7 +21,7 @@ import { useTheme } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
 type EditorProps =
-    | { mode: "create"; initialScriptureRef?: string }
+    | { mode: "create"; initialScriptureRef?: string; fromBrp?: boolean }
     | { mode: "edit"; id: string };
 
 type JournalVersion = {
@@ -410,7 +410,7 @@ export default function JournalEditor(props: EditorProps) {
                     onChangeText={onChangeScriptureRef}
                 />
 
-                {props.mode === "create" ? (
+                {props.mode === "create" && !props.fromBrp ? (
                     <Pressable
                         style={styles.brpInline}
                         onPress={handlePickFromBrp}

@@ -216,7 +216,7 @@ export default function BRP() {
     }
     const target = {
       pathname: "/journal/create",
-      params: { scriptureRef: verse },
+      params: { scriptureRef: verse, fromBrp: "1" },
     };
     if (isPicker) {
       router.replace(target);
@@ -326,6 +326,7 @@ export default function BRP() {
       ) : (
         <ScrollView
           ref={scrollRef}
+          showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}

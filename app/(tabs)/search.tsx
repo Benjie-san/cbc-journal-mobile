@@ -111,6 +111,7 @@ export default function SearchScreen() {
         data={filteredJournals}
         keyExtractor={(item) => item._id}
         contentContainerStyle={{ paddingBottom: 100 }}
+        showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <Text style={[styles.empty, { color: mutedText }]}>
             {journals.length ? "No matching entries." : "No journal entries yet."}
