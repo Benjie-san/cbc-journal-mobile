@@ -12,6 +12,7 @@ import { ThemeProvider } from "@react-navigation/native";
 import { darkTheme, lightTheme } from "../src/theme";
 import { useThemeStore } from "../src/store/themeStore";
 import { useStreakStore } from "../src/store/streakStore";
+import { useReminderStore } from "../src/store/reminderStore";
 import * as Notifications from "expo-notifications";
 
 export default function RootLayout() {
@@ -52,6 +53,39 @@ export default function RootLayout() {
   }, [hydrateTheme, hydrateStreak]);
 
   useEffect(() => {
+    let listener: Notifications.Subscription | undefined;
+    let responseListener: Notifications.Subscription | undefined;
+
+    (async () => {
+      await useReminderStore.getState().hydrate();
+      const state = useReminderStore.getState();
+      if (state.enabled) {
+        await useReminderStore.getState().scheduleNextOccurrence();
+      }
+
+      listener = Notifications.addNotificationReceivedListener(async (event) => {
+        const data = event.request?.content?.data as any;
+        if (data?.type === "dailyReminder") {
+          await useReminderStore.getState().scheduleNextOccurrence();
+        }
+      });
+
+      responseListener =
+        Notifications.addNotificationResponseReceivedListener(async (event) => {
+          const data = event.notification?.request?.content?.data as any;
+          if (data?.type === "dailyReminder") {
+            await useReminderStore.getState().scheduleNextOccurrence();
+          }
+        });
+    })();
+
+    return () => {
+      listener?.remove();
+      responseListener?.remove();
+    };
+  }, []);
+
+  useEffect(() => {
     const exchangeBackendToken = async (firebaseUser: User) => {
       const idToken = await firebaseUser.getIdToken(true);
       const data = await apiPost(
@@ -83,6 +117,12 @@ export default function RootLayout() {
         return;
       }
 
+      try {
+        await useJournalStore.getState().loadJournals();
+      } catch (err) {
+        console.log("Failed to load journals on login:", err);
+      }
+
       // 2. Check backend token
       let token = await AsyncStorage.getItem("backendToken");
       console.log("LOADED backendToken:", token);
@@ -109,6 +149,11 @@ export default function RootLayout() {
 
         await useStreakStore.getState().bootstrapFromServer(me);
         setBackendReady(true);
+        try {
+          await useJournalStore.getState().syncJournals();
+        } catch (syncErr) {
+          console.log("Initial sync failed:", syncErr);
+        }
         if (inAuthGroup || isRoot) {
           router.replace("/(tabs)");
         }
@@ -121,6 +166,11 @@ export default function RootLayout() {
             const me = await apiGet("/me", true, OFFLINE_TIMEOUT_MS);
             await useStreakStore.getState().bootstrapFromServer(me);
             setBackendReady(true);
+            try {
+              await useJournalStore.getState().syncJournals();
+            } catch (syncErr) {
+              console.log("Initial sync failed:", syncErr);
+            }
             if (inAuthGroup || isRoot) {
               router.replace("/(tabs)");
             }

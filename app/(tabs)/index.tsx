@@ -365,17 +365,13 @@ export default function JournalListScreen() {
           </Text>
         }
         ListHeaderComponent={
-          <View style={[styles.header]}>
-            <View style={styles.streakRow}>
-              <View style={[styles.streakPill, { backgroundColor: colors.card }]}>
-                <Ionicons name="flame-outline" size={18} color={ACCENT_COLOR} />
-                <Text style={[styles.streakValue, { color: colors.text }]}>
-                  {currentStreak}
-                </Text>
-              </View>
-            </View>
-            <View style={[styles.todayCard, { backgroundColor: colors.card }]}>
+          <View style={[styles.header,]}>
+            
+            <View style={[styles.todayCard, { backgroundColor: colors.card, gap: 10 }]}>
+              
+              <View style={{ marginTop: 1 }} />
               <View style={styles.todayRow}>
+
                 <View style={styles.todayInfo}>
                   <Text style={[styles.todayTitle, { color: colors.text }]}>
                     Today's Passage
@@ -401,22 +397,36 @@ export default function JournalListScreen() {
                     </Text>
                   )}
                 </View>
-                <Pressable
-                  style={[
-                    styles.todayButton,
-                    !todayPassage && styles.todayButtonDisabled,
-                  ]}
-                  onPress={handleTodayOpen}
-                  disabled={!todayPassage}
-                >
-                  {todayEntry ? (
-                    <Ionicons name="checkmark" size={16} color="#fff" />
-                  ) : null}
-                  <Text style={styles.todayButtonText}>
-                    {todayEntry ? "Entry Added" : "Add Entry"}
-                  </Text>
-                </Pressable>
+                  <View >
+                    <View style={[styles.streakRow]}>
+                      <View style={[styles.streakPill, { backgroundColor: colors.card }]}>
+            
+                        <Text style={[styles.streakValue, { color: colors.text }]}>
+                          {currentStreak}
+                        </Text>
+                        <Ionicons name="flame-outline" size={18} color={ACCENT_COLOR} />
+                      </View>
+                    </View>
+
+                    <Pressable
+                      style={[
+                        styles.todayButton,
+                        !todayPassage && styles.todayButtonDisabled,
+                      ]}
+                      onPress={handleTodayOpen}
+                      disabled={!todayPassage}
+                    >
+                      {todayEntry ? (
+                        <Ionicons name="checkmark" size={16} color="#fff" />
+                      ) : null}
+                      <Text style={styles.todayButtonText}>
+                        {todayEntry ? "Entry Added" : "Add Entry"}
+                      </Text>
+                    </Pressable>
+                  </View>
+                  
               </View>
+              <View style={{ marginTop: 1 }} />
             </View>
             {statusText ? (
               <Animated.View
@@ -439,12 +449,11 @@ export default function JournalListScreen() {
                 </Text>
               </Animated.View>
             ) : null}
-            <View style={{ marginTop: 6 }} />
           </View>
         }
         renderItem={({ item }) => (
           <Pressable
-            style={[styles.card, { backgroundColor: colors.card }]}
+            style={[styles.card, { backgroundColor: colors.card, margin: 10 }]}
             onPress={() => handleOpen(item._id)}
             onLongPress={() => confirmSoftDelete(item._id)}
           >
@@ -483,9 +492,6 @@ export default function JournalListScreen() {
                 {formatTime(item.lastSavedAt)}
               </Text>
             ) : null}
-            <Text style={[styles.preview, { color: subtleText }]}>
-              {item.content?.observation?.slice(0, 80) || ""}
-            </Text>
           </Pressable>
         )}
       />

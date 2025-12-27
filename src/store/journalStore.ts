@@ -498,7 +498,11 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
             });
         }
     },
-    reset: () =>
+    reset: () => {
+        if (autosaveTimer) {
+            clearTimeout(autosaveTimer);
+            autosaveTimer = null;
+        }
         set({
             journals: [],
             trash: [],
@@ -508,6 +512,7 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
             lastSyncAt: undefined,
             isOnline: true,
             syncError: null,
-        }),
+        });
+    },
     
 }));

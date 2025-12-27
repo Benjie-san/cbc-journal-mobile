@@ -12,6 +12,9 @@
         "android": {
         "buildType": "apk"
       },
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://cbc-journal-backend.onrender.com"
+      },
       "distribution": "internal"
     },
     "production": {

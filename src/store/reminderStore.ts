@@ -7,65 +7,50 @@ type ReminderState = {
   hour: number;
   minute: number;
   notificationId: string | null;
-  oneOffId: string | null;
   hydrated: boolean;
   hydrate: () => Promise<void>;
   setEnabled: (enabled: boolean) => Promise<boolean>;
   setTime: (hour: number, minute: number) => Promise<void>;
+  scheduleNextOccurrence: () => Promise<void>;
 };
 
 const REMINDER_KEY = "dailyReminder";
 const REMINDER_TITLE = "Journal Reminder";
-const CATCH_UP_DELAY_SECONDS = 30;
+const REMINDER_DATA = { type: "dailyReminder" };
 
 const persist = async (state: {
   enabled: boolean;
   hour: number;
   minute: number;
   notificationId: string | null;
-  oneOffId: string | null;
 }) => {
   await AsyncStorage.setItem(REMINDER_KEY, JSON.stringify(state));
 };
 
-const scheduleDaily = async (hour: number, minute: number) => {
-  return Notifications.scheduleNotificationAsync({
-    content: {
-      title: REMINDER_TITLE,
-      body: "Time to write today's journal entry.",
-    },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.DAILY,
-      hour,
-      minute,
-      repeats: true,
-      channelId: "default",
-    },
-  });
-};
-
-const scheduleOneOff = async (fireDate: Date) => {
-  return Notifications.scheduleNotificationAsync({
-    content: {
-      title: REMINDER_TITLE,
-      body: "Time to write today's journal entry.",
-    },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.DATE,
-      date: fireDate,
-      channelId: "default",
-    },
-  });
-};
-
-const getOneOffDate = (hour: number, minute: number) => {
+const getNextTriggerDate = (hour: number, minute: number) => {
   const now = new Date();
   const target = new Date();
   target.setHours(hour, minute, 0, 0);
-  if (now <= target) {
-    return target;
+  if (target <= now) {
+    target.setDate(target.getDate() + 1);
   }
-  return new Date(now.getTime() + CATCH_UP_DELAY_SECONDS * 1000);
+  return target;
+};
+
+const scheduleNext = async (hour: number, minute: number) => {
+  const triggerDate = getNextTriggerDate(hour, minute);
+  return Notifications.scheduleNotificationAsync({
+    content: {
+      title: REMINDER_TITLE,
+      body: "Time to write today's journal entry.",
+      data: REMINDER_DATA,
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DATE,
+      date: triggerDate,
+      channelId: "default",
+    },
+  });
 };
 
 const cancelExistingReminders = async (notificationId?: string | null) => {
@@ -88,7 +73,6 @@ export const useReminderStore = create<ReminderState>((set, get) => ({
   hour: 6,
   minute: 0,
   notificationId: null,
-  oneOffId: null,
   hydrated: false,
   hydrate: async () => {
     const raw = await AsyncStorage.getItem(REMINDER_KEY);
@@ -100,7 +84,6 @@ export const useReminderStore = create<ReminderState>((set, get) => ({
           hour: Number.isFinite(parsed.hour) ? parsed.hour : 6,
           minute: Number.isFinite(parsed.minute) ? parsed.minute : 0,
           notificationId: parsed.notificationId ?? null,
-          oneOffId: parsed.oneOffId ?? null,
         });
       } catch {
         // ignore corrupt data
@@ -119,55 +102,69 @@ export const useReminderStore = create<ReminderState>((set, get) => ({
         }
       }
       const state = get();
-      await cancelExistingReminders(state.notificationId);
-      const id = await scheduleDaily(state.hour, state.minute);
-      const oneOffId = await scheduleOneOff(
-        getOneOffDate(state.hour, state.minute)
-      );
       const next = {
+        ...state,
         enabled: true,
-        hour: state.hour,
-        minute: state.minute,
-        notificationId: id,
-        oneOffId,
       };
       set(next);
-      await persist(next);
+      await persist({
+        enabled: true,
+        hour: next.hour,
+        minute: next.minute,
+        notificationId: next.notificationId,
+      });
+      await get().scheduleNextOccurrence();
       return true;
     }
 
     const state = get();
     await cancelExistingReminders(state.notificationId);
     const next = {
+      ...state,
       enabled: false,
-      hour: state.hour,
-      minute: state.minute,
       notificationId: null,
-      oneOffId: null,
     };
     set(next);
-    await persist(next);
+    await persist({
+      enabled: false,
+      hour: next.hour,
+      minute: next.minute,
+      notificationId: null,
+    });
     return true;
   },
   setTime: async (hour, minute) => {
     const state = get();
     const safeHour = Math.min(Math.max(hour, 0), 23);
     const safeMinute = Math.min(Math.max(minute, 0), 59);
-    let notificationId = state.notificationId;
-    let oneOffId = state.oneOffId;
-    if (state.enabled) {
-      await cancelExistingReminders(notificationId);
-      notificationId = await scheduleDaily(safeHour, safeMinute);
-      oneOffId = await scheduleOneOff(getOneOffDate(safeHour, safeMinute));
-    }
     const next = {
-      enabled: state.enabled,
+      ...state,
       hour: safeHour,
       minute: safeMinute,
-      notificationId,
-      oneOffId,
     };
     set(next);
-    await persist(next);
+    await persist({
+      enabled: next.enabled,
+      hour: next.hour,
+      minute: next.minute,
+      notificationId: next.notificationId,
+    });
+    if (next.enabled) {
+      await get().scheduleNextOccurrence();
+    }
+  },
+  scheduleNextOccurrence: async () => {
+    const state = get();
+    if (!state.enabled) return;
+    await cancelExistingReminders(state.notificationId);
+    const id = await scheduleNext(state.hour, state.minute);
+    const next = { ...state, notificationId: id };
+    set(next);
+    await persist({
+      enabled: next.enabled,
+      hour: next.hour,
+      minute: next.minute,
+      notificationId: next.notificationId,
+    });
   },
 }));

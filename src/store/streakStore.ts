@@ -18,6 +18,7 @@ type StreakState = {
   recordEntry: (date?: string) => Promise<void>;
   recalculateFromEntries: (entries: JournalEntry[]) => Promise<void>;
   syncToServer: () => Promise<void>;
+  reset: () => Promise<void>;
 };
 
 const STREAK_KEY = "streakStats";
@@ -209,5 +210,15 @@ export const useStreakStore = create<StreakState>((set, get) => ({
     } catch {
       // ignore sync failures; offline-first
     }
+  },
+  reset: async () => {
+    set({
+      currentStreak: 0,
+      longestStreak: 0,
+      lastJournalDate: null,
+      hydrated: true,
+      source: "unknown",
+    });
+    await AsyncStorage.removeItem(STREAK_KEY);
   },
 }));

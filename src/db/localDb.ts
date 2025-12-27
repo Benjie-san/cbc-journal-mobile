@@ -363,3 +363,9 @@ export async function getPlanDaysByYear(year: number): Promise<LocalPlanDay[]> {
     isSermonNotes: row.is_sermon_notes === 1,
   }));
 }
+
+export async function clearLocalJournals() {
+  await initDb();
+  const db = await getDb();
+  await db.runAsync("DELETE FROM journals");
+}

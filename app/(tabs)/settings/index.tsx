@@ -6,17 +6,21 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { signOut } from "firebase/auth";
 import { auth } from "../../../src/firebase/config";
 import { useJournalStore } from "../../../src/store/journalStore";
+import { useAuthStore } from "../../../src/store/authStore";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "@react-navigation/native";
 import { useThemeStore } from "../../../src/store/themeStore";
 import { ACCENT_COLOR } from "../../../src/theme";
 import { useReminderStore } from "../../../src/store/reminderStore";
 import { useStreakStore } from "../../../src/store/streakStore";
+import { clearLocalJournals } from "../../../src/db/localDb";
 import { useEffect, useState } from "react";
 import * as Notifications from "expo-notifications";
 
 export default function Settings() {
   const resetStore = useJournalStore((state) => state.reset);
+  const resetAuth = useAuthStore((state) => state.reset);
+  const resetStreak = useStreakStore((state) => state.reset);
   const { colors, dark: navIsDark } = useTheme();
   const themeMode = useThemeStore((state) => state.theme);
   const setTheme = useThemeStore((state) => state.setTheme);
@@ -48,8 +52,11 @@ export default function Settings() {
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      await AsyncStorage.removeItem("backendToken");
+      await AsyncStorage.multiRemove(["backendToken", "authToken"]);
+      await clearLocalJournals();
       resetStore();
+      await resetStreak();
+      resetAuth();
       router.replace("/(auth)");
     } catch (err: any) {
       Alert.alert("Logout failed", err?.message ?? "Unknown error");
@@ -111,6 +118,22 @@ export default function Settings() {
 
   const formatTriggerTime = (trigger: Notifications.NotificationTrigger | null) => {
     if (!trigger || typeof trigger !== "object") return "Unknown";
+    if ("date" in trigger) {
+      const rawDate = (trigger as any).date;
+      const dateVal = rawDate instanceof Date ? rawDate : new Date(rawDate);
+      if (!Number.isNaN(dateVal.getTime())) {
+        return dateVal.toLocaleString();
+      }
+    }
+    if ("value" in trigger) {
+      const rawValue = Number((trigger as any).value);
+      if (Number.isFinite(rawValue)) {
+        const dateVal = new Date(rawValue);
+        if (!Number.isNaN(dateVal.getTime())) {
+          return dateVal.toLocaleString();
+        }
+      }
+    }
     if ("hour" in trigger && "minute" in trigger) {
       const hour = Number(trigger.hour);
       const minute = Number(trigger.minute);
@@ -143,14 +166,14 @@ export default function Settings() {
         "type" in item.trigger &&
         item.trigger.type === Notifications.SchedulableTriggerInputTypes.DAILY
     );
-    const oneOff = scheduled.find(
-      (item) =>
-        item.trigger &&
-        typeof item.trigger === "object" &&
-        "type" in item.trigger &&
-        item.trigger.type === Notifications.SchedulableTriggerInputTypes.DATE
-    );
-    const target = byId ?? daily ?? scheduled[0];
+    const oneOff = scheduled.find((item) => {
+      if (!item.trigger || typeof item.trigger !== "object") return false;
+      if ("type" in item.trigger) {
+        return item.trigger.type === Notifications.SchedulableTriggerInputTypes.DATE;
+      }
+      return "date" in item.trigger;
+    });
+    const target = byId ?? oneOff ?? daily ?? scheduled[0];
     const timeText = formatTriggerTime(target.trigger ?? null);
     const now = new Date();
     const next = new Date();
@@ -171,6 +194,18 @@ export default function Settings() {
       `Trigger time: ${timeText}`,
       `Next occurrence: ${dayLabel} at ${nextTime}`,
     ];
+    lines.push(`Scheduled count: ${scheduled.length}`);
+    scheduled.forEach((item, index) => {
+      const triggerType =
+        item.trigger && typeof item.trigger === "object" && "type" in item.trigger
+          ? String((item.trigger as any).type)
+          : "unknown";
+      const triggerDetails =
+        item.trigger && typeof item.trigger === "object"
+          ? JSON.stringify(item.trigger)
+          : String(item.trigger);
+      lines.push(`${index + 1}. ${triggerType} ${triggerDetails}`);
+    });
     if (oneOff?.trigger && typeof oneOff.trigger === "object" && "date" in oneOff.trigger) {
       const rawDate = (oneOff.trigger as any).date;
       const dateVal = rawDate instanceof Date ? rawDate : new Date(rawDate);
