@@ -106,7 +106,10 @@ export default function SearchScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView
+      edges={["top"]}
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
       <FlatList
         data={filteredJournals}
         keyExtractor={(item) => item._id}

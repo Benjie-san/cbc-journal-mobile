@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import {
+    ActivityIndicator,
     Alert,
-    Button,
+    KeyboardAvoidingView,
     Modal,
+    Platform,
     Pressable,
     RefreshControl,
     ScrollView,
+    Share,
     StyleSheet,
     Text,
     TextInput,
@@ -19,6 +22,7 @@ import { apiGet, apiPost } from "../../src/api/client";
 import { ACCENT_COLOR } from "../../src/theme";
 import { useTheme } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
 
 type EditorProps =
     | { mode: "create"; initialScriptureRef?: string; fromBrp?: boolean }
@@ -78,6 +82,8 @@ export default function JournalEditor(props: EditorProps) {
     const [versions, setVersions] = useState<JournalVersion[]>([]);
     const [conflictVisible, setConflictVisible] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
+    const [createSaving, setCreateSaving] = useState(false);
+    const [menuOpen, setMenuOpen] = useState(false);
     const subtleText = isDark ? "#b9c0cf" : "#555";
     const mutedText = isDark ? "#8e95a6" : "#777";
     const inputBackground = isDark ? "#1a1f2b" : "#fff";
@@ -316,23 +322,55 @@ export default function JournalEditor(props: EditorProps) {
         });
     };
 
+    const buildShareText = () => {
+        const parts: string[] = [];
+        const cleanTitle = title.trim();
+        const cleanRef = scriptureRef.trim();
+        if (cleanTitle) parts.push(cleanTitle);
+        if (cleanRef) parts.push(cleanRef);
+        const sections: Array<[string, string]> = [
+            ["Question", content.question],
+            ["Observation", content.observation],
+            ["Application", content.application],
+            ["Prayer", content.prayer],
+        ];
+        sections.forEach(([label, value]) => {
+            const trimmed = value.trim();
+            if (trimmed) {
+                parts.push(`${label}\n${trimmed}`);
+            }
+        });
+        const result = parts.join("\n\n").trim();
+        if (!result) {
+            Alert.alert("Nothing to share", "Add content before sharing.");
+            return "";
+        }
+        return result;
+    };
+
     // ─────────────────────────────────────────────
   // Manual save (Create OR Edit)
   // ─────────────────────────────────────────────
     const onSave = async () => {
         if (props.mode === "create") {
-        const entry = await createJournal({
-            title,
-            scriptureRef,
-            tags,
-            content,
-        });
+        if (createSaving) return;
+        setCreateSaving(true);
+        try {
+            const entry = await createJournal({
+                title,
+                scriptureRef,
+                tags,
+                content,
+            });
 
-        // Redirect to edit after create
-        router.replace({
-            pathname: "/journal/edit",
-            params: { id: entry._id },
-        });
+            // Redirect to edit after create
+            router.replace({
+                pathname: "/journal/edit",
+                params: { id: entry._id },
+            });
+        } finally {
+            setCreateSaving(false);
+        }
         } else {
         const ok = await updateJournal(props.id, {
             title,
@@ -348,8 +386,38 @@ export default function JournalEditor(props: EditorProps) {
 
     return (
         <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
+        <View
+            style={[
+                styles.topHeader,
+                { backgroundColor: colors.background, borderBottomColor: colors.border },
+            ]}
+        >
+            <View style={styles.topHeaderRow}>
+                <Pressable
+                    style={styles.topHeaderAction}
+                    onPress={() => router.back()}
+                >
+                    <Ionicons name="chevron-back" size={22} color={colors.text} />
+                </Pressable>
+                <Text style={[styles.topHeaderTitle, { color: colors.text }]}>
+                    Journal Entry
+                </Text>
+                <Pressable
+                    style={styles.topHeaderAction}
+                    onPress={() => setMenuOpen(true)}
+                >
+                    <Ionicons name="ellipsis-horizontal" size={20} color={colors.text} />
+                </Pressable>
+            </View>
+        </View>
+        <KeyboardAvoidingView
+            style={styles.flex}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            keyboardVerticalOffset={0}
+        >
         <ScrollView
             contentContainerStyle={[styles.container, { backgroundColor: colors.background }]}
+            keyboardShouldPersistTaps="handled"
             refreshControl={
                 props.mode === "edit" ? (
                     <RefreshControl
@@ -359,28 +427,6 @@ export default function JournalEditor(props: EditorProps) {
                 ) : undefined
             }
         >
-            {props.mode === "edit" ? (
-                <View style={styles.headerRow}>
-                    <Pressable
-                        style={[styles.historyButton, { backgroundColor: chipBackground }]}
-                        onPress={openHistory}
-                    >
-                        <Text style={[styles.historyText, { color: colors.text }]}>
-                            View History
-                        </Text>
-                    </Pressable>
-                    <View style={styles.statusBlock}>
-                        <Text style={[styles.statusText, { color: subtleText }]}>
-                            {formatStatus(existing)}
-                        </Text>
-                        {existing?.lastSavedAt ? (
-                            <Text style={[styles.statusSubtext, { color: mutedText }]}>
-                                {formatTime(existing.lastSavedAt)}
-                            </Text>
-                        ) : null}
-                    </View>
-                </View>
-            ) : null}
             <TextInput
                 style={[
                     styles.title,
@@ -502,14 +548,109 @@ export default function JournalEditor(props: EditorProps) {
                 onChangeText={v => onChangeField("prayer", v)}
                 multiline
             />
-            { props.mode === "create" ?
-            <Button
-                title={saving ? "Saving..." : "Save"}
-                onPress={onSave}
-                disabled={saving}
-            />
-            : null }
+            {props.mode === "create" ? (
+                <Pressable
+                    style={[
+                        styles.saveButton,
+                        (createSaving || saving) && styles.saveButtonDisabled,
+                    ]}
+                    onPress={onSave}
+                    disabled={saving || createSaving}
+                >
+                    {createSaving || saving ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                        <Text style={styles.saveButtonText}>Save</Text>
+                    )}
+                </Pressable>
+            ) : null}
         </ScrollView>
+        </KeyboardAvoidingView>
+        <Modal
+            visible={menuOpen}
+            animationType="fade"
+            transparent
+            onRequestClose={() => setMenuOpen(false)}
+        >
+            <View style={styles.modalBackdrop}>
+                <View style={[styles.modalCard, { backgroundColor: modalBackground }]}>
+                    <Text style={[styles.modalTitle, { color: colors.text }]}>
+                        Menu
+                    </Text>
+                    <View style={styles.menuList}>
+                        {props.mode === "edit" ? (
+                            <Pressable
+                                style={[
+                                    styles.menuItem,
+                                    styles.menuItemDivider,
+                                    { borderBottomColor: dividerColor },
+                                ]}
+                                onPress={() => {
+                                    setMenuOpen(false);
+                                    openHistory();
+                                }}
+                            >
+                                <Ionicons name="time-outline" size={18} color={colors.text} />
+                                <Text style={[styles.menuText, { color: colors.text }]}>
+                                    View History
+                                </Text>
+                            </Pressable>
+                        ) : null}
+                        <Pressable
+                            style={[
+                                styles.menuItem,
+                                styles.menuItemDivider,
+                                { borderBottomColor: dividerColor },
+                            ]}
+                            onPress={async () => {
+                                const text = buildShareText();
+                                if (!text) return;
+                                setMenuOpen(false);
+                                await Share.share({ message: text });
+                            }}
+                        >
+                            <Ionicons name="share-social-outline" size={18} color={colors.text} />
+                            <Text style={[styles.menuText, { color: colors.text }]}>
+                                Share
+                            </Text>
+                        </Pressable>
+                        <Pressable
+                            style={styles.menuItem}
+                            onPress={async () => {
+                                const text = buildShareText();
+                                if (!text) return;
+                                setMenuOpen(false);
+                                await Clipboard.setStringAsync(text);
+                                Alert.alert("Copied", "Entry copied to clipboard.");
+                            }}
+                        >
+                            <Ionicons name="copy-outline" size={18} color={colors.text} />
+                            <Text style={[styles.menuText, { color: colors.text }]}>
+                                Copy to Clipboard
+                            </Text>
+                        </Pressable>
+                    </View>
+                    {props.mode === "edit" ? (
+                        <View style={styles.menuMeta}>
+                            <Text style={[styles.statusText, { color: subtleText }]}>
+                                {formatStatus(existing)}
+                            </Text>
+                            {existing?.lastSavedAt ? (
+                                <Text style={[styles.statusSubtext, { color: mutedText }]}>
+                                    {formatTime(existing.lastSavedAt)}
+                                </Text>
+                            ) : null}
+                        </View>
+                    ) : null}
+                    <Pressable
+                        style={styles.modalClose}
+                        onPress={() => setMenuOpen(false)}
+                    >
+                        <Text style={styles.modalCloseText}>Close</Text>
+                    </Pressable>
+                </View>
+            </View>
+        </Modal>
         <Modal
             visible={historyOpen}
             animationType="slide"
@@ -624,22 +765,26 @@ export default function JournalEditor(props: EditorProps) {
 
 const styles = StyleSheet.create({
     safeArea: { flex: 1 },
-    container: { padding: 16 },
-    headerRow: {
+    flex: { flex: 1 },
+    topHeader: {
+        borderBottomWidth: 1,
+        paddingHorizontal: 16,
+        paddingTop: 6,
+        paddingBottom: 10,
+    },
+    topHeaderRow: {
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
-        marginBottom: 12,
-        gap: 12,
     },
-    historyButton: {
-        alignSelf: "flex-start",
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 10,
+    topHeaderTitle: { fontSize: 16, fontWeight: "600" },
+    topHeaderAction: {
+        width: 36,
+        height: 36,
+        alignItems: "center",
+        justifyContent: "center",
     },
-    historyText: { fontWeight: "600" },
-    statusBlock: { alignItems: "flex-end" },
+    container: { padding: 16 },
     statusText: { fontSize: 12, fontWeight: "600" },
     statusSubtext: { fontSize: 11, marginTop: 2 },
     title: {
@@ -677,6 +822,14 @@ const styles = StyleSheet.create({
         padding: 10,
         marginBottom: 12,
     },
+    saveButton: {
+        backgroundColor: ACCENT_COLOR,
+        paddingVertical: 12,
+        borderRadius: 10,
+        alignItems: "center",
+    },
+    saveButtonDisabled: { opacity: 0.7 },
+    saveButtonText: { color: "#fff", fontWeight: "600" },
     textarea: {
         borderWidth: 1,
         borderRadius: 8,
@@ -699,6 +852,16 @@ const styles = StyleSheet.create({
     modalTitle: { fontSize: 16, fontWeight: "600", marginBottom: 8 },
     modalSubtle: { marginBottom: 12 },
     modalList: { marginBottom: 12 },
+    menuList: { marginBottom: 12 },
+    menuItem: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+        paddingVertical: 10,
+    },
+    menuItemDivider: { borderBottomWidth: 1 },
+    menuText: { fontSize: 14, fontWeight: "600" },
+    menuMeta: { alignItems: "flex-end", marginBottom: 8 },
     versionRow: {
         flexDirection: "row",
         justifyContent: "space-between",

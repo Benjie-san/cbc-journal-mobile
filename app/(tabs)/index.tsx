@@ -21,6 +21,7 @@ import { ACCENT_COLOR } from "../../src/theme";
 import { useStreakStore } from "../../src/store/streakStore";
 
 const PLAN_YEARS = [2024, 2025];
+const SERMON_NOTES_LABEL = "Sermon Notes";
 const MONTHS = [
   "January",
   "February",
@@ -36,6 +37,11 @@ const MONTHS = [
   "December",
 ];
 
+
+const normalizeRef = (value: string) => value.trim().toLowerCase();
+
+const buildSermonNotesRef = (year: number, month: string, date: number) =>
+  `${SERMON_NOTES_LABEL} - ${month} ${date}, ${year}`;
 
 export default function JournalListScreen() {
   const router = useRouter();
@@ -164,12 +170,30 @@ export default function JournalListScreen() {
   );
 
 
+  const getEntryRefKey = useCallback((entry: (typeof journals)[number]) => {
+    const rawRef = (entry.scriptureRef ?? "").trim();
+    if (!rawRef) return "";
+    const lowerRef = rawRef.toLowerCase();
+    if (lowerRef === SERMON_NOTES_LABEL.toLowerCase()) {
+      const entryDate = entry.createdAt ?? entry.updatedAt;
+      if (!entryDate) return lowerRef;
+      const date = new Date(entryDate);
+      const month = MONTHS[date.getMonth()];
+      return normalizeRef(
+        buildSermonNotesRef(date.getFullYear(), month, date.getDate())
+      );
+    }
+    return normalizeRef(rawRef);
+  }, []);
+
   const findLatestEntry = useCallback(
-    (verse: string) => {
-      const target = verse.trim().toLowerCase();
+    (verse: string, day?: { year: number; month: string; date: number }) => {
+      const isSermon = normalizeRef(verse) === SERMON_NOTES_LABEL.toLowerCase();
+      const target = isSermon && day
+        ? normalizeRef(buildSermonNotesRef(day.year, day.month, day.date))
+        : normalizeRef(verse);
       const matches = journals.filter(
-        (entry) =>
-          (entry.scriptureRef ?? "").trim().toLowerCase() === target
+        (entry) => getEntryRefKey(entry) === target
       );
       if (!matches.length) return null;
       return matches.sort((a, b) => {
@@ -178,7 +202,7 @@ export default function JournalListScreen() {
         return bTime - aTime;
       })[0];
     },
-    [journals]
+    [getEntryRefKey, journals]
   );
 
   const handleOpen = async (id: string) => {
@@ -195,11 +219,15 @@ export default function JournalListScreen() {
 
   const todayEntry = useMemo(() => {
     if (!todayPassage?.verse) return null;
-    return findLatestEntry(todayPassage.verse);
-  }, [findLatestEntry, todayPassage?.verse]);
+    return findLatestEntry(todayPassage.verse, todayPassage);
+  }, [findLatestEntry, todayPassage]);
 
   const handleTodayOpen = () => {
     if (!todayPassage?.verse) return;
+    const isSermon = normalizeRef(todayPassage.verse) === SERMON_NOTES_LABEL.toLowerCase();
+    const ref = isSermon
+      ? buildSermonNotesRef(todayPassage.year, todayPassage.month, todayPassage.date)
+      : todayPassage.verse;
     if (todayEntry?._id) {
       router.push({
         pathname: "/journal/edit",
@@ -209,7 +237,7 @@ export default function JournalListScreen() {
     }
     router.push({
       pathname: "/journal/create",
-      params: { scriptureRef: todayPassage.verse },
+      params: { scriptureRef: ref, fromBrp: "1" },
     });
   };
 
@@ -352,7 +380,10 @@ export default function JournalListScreen() {
     statusKind === "error" ? (isDark ? "#f97066" : "#b42318") : colors.text;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView
+      edges={["top"]}
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
       <FlatList
         data={journals}
         keyExtractor={(item) => item._id}

@@ -90,7 +90,10 @@ export default function Settings() {
 
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView
+      edges={["top"]}
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
       <View style={[styles.card, { backgroundColor: colors.card }]}>
         <View style={styles.streakRow}>
           <View style={styles.streakItem}>
@@ -251,7 +254,7 @@ export default function Settings() {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 16, gap: 16 },
+  container: { flex: 1, padding: 16, gap: 16 },
   card: {
     padding: 12,
     borderRadius: 12,

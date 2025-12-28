@@ -31,6 +31,7 @@ type PlanDay = {
 };
 
 const YEAR_OPTIONS = [2024, 2025];
+const SERMON_NOTES_LABEL = "Sermon Notes";
 const MONTHS = [
   "January",
   "February",
@@ -48,6 +49,11 @@ const MONTHS = [
 const AUTO_SCROLL_MONTH = MONTHS[new Date().getMonth()];
 const SCROLL_OFFSET = 12;
 const PLAN_TIMEOUT_MS = 2500;
+
+const normalizeRef = (value: string) => value.trim().toLowerCase();
+
+const buildSermonNotesRef = (year: number, month: string, date: number) =>
+  `${SERMON_NOTES_LABEL} - ${month} ${date}, ${year}`;
 
 export default function BRP() {
   const router = useRouter();
@@ -168,10 +174,33 @@ export default function BRP() {
     }, [defaultYear, hydratePlanYear, loadPlan])
   );
 
+  const getEntryRefKey = useCallback((entry: (typeof journals)[number]) => {
+    const rawRef = (entry.scriptureRef ?? "").trim();
+    if (!rawRef) return "";
+    const lowerRef = rawRef.toLowerCase();
+    if (lowerRef === SERMON_NOTES_LABEL.toLowerCase()) {
+      const entryDate = entry.createdAt ?? entry.updatedAt;
+      if (!entryDate) return lowerRef;
+      const date = new Date(entryDate);
+      const month = MONTHS[date.getMonth()];
+      return normalizeRef(
+        buildSermonNotesRef(date.getFullYear(), month, date.getDate())
+      );
+    }
+    return normalizeRef(rawRef);
+  }, []);
+
+  const getDayRef = useCallback((day: PlanDay) => {
+    if (day.isSermonNotes) {
+      return buildSermonNotesRef(day.year, day.month, day.date);
+    }
+    return day.verse;
+  }, []);
+
   const completionRefs = useMemo(() => {
     const map = new Set<string>();
     journals.forEach((entry) => {
-      const ref = (entry.scriptureRef ?? "").trim().toLowerCase();
+      const ref = getEntryRefKey(entry);
       if (!ref) return;
       const title = (entry.title ?? "").trim();
       const observation = (entry.content?.observation ?? "").trim();
@@ -181,14 +210,13 @@ export default function BRP() {
       }
     });
     return map;
-  }, [journals]);
+  }, [getEntryRefKey, journals]);
 
   const findLatestEntry = useCallback(
-    (verse: string) => {
-      const target = verse.trim().toLowerCase();
+    (day: PlanDay) => {
+      const target = normalizeRef(getDayRef(day));
       const matches = journals.filter(
-        (entry) =>
-          (entry.scriptureRef ?? "").trim().toLowerCase() === target
+        (entry) => getEntryRefKey(entry) === target
       );
       if (!matches.length) return null;
       return matches.sort((a, b) => {
@@ -197,11 +225,12 @@ export default function BRP() {
         return bTime - aTime;
       })[0];
     },
-    [journals]
+    [getDayRef, getEntryRefKey, journals]
   );
 
-  const openEditor = (verse: string) => {
-    const existing = findLatestEntry(verse);
+  const openEditor = (day: PlanDay) => {
+    const existing = findLatestEntry(day);
+    const ref = getDayRef(day);
     if (existing?._id) {
       const target = {
         pathname: "/journal/edit",
@@ -216,7 +245,7 @@ export default function BRP() {
     }
     const target = {
       pathname: "/journal/create",
-      params: { scriptureRef: verse, fromBrp: "1" },
+      params: { scriptureRef: ref, fromBrp: "1" },
     };
     if (isPicker) {
       router.replace(target);
@@ -278,7 +307,10 @@ export default function BRP() {
   }, [planByMonth, selectedYear, scrollToMonth]);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView
+      edges={["top"]}
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: colors.text }]}>
           Bible Reading Plan
@@ -327,6 +359,7 @@ export default function BRP() {
         <ScrollView
           ref={scrollRef}
           showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -374,14 +407,14 @@ export default function BRP() {
                   <View style={styles.sectionBody}>
                     {days.length ? (
                       days.map((day) => {
-                        const refKey = day.verse.trim().toLowerCase();
+                        const refKey = normalizeRef(getDayRef(day));
                         const isCompleted = completionRefs.has(refKey);
 
                         return (
                           <Pressable
                             key={day._id}
                             style={[styles.row, { borderTopColor: rowBorder }]}
-                            onPress={() => openEditor(day.verse)}
+                            onPress={() => openEditor(day)}
                           >
                             <View style={styles.rowLeft}>
                               <Text style={[styles.date, { color: mutedText }]}>
@@ -474,6 +507,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingBottom: 8,
   },
+  scrollContent: { paddingBottom: 100 },
   row: {
     paddingVertical: 10,
     borderTopWidth: 1,
