@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Stack, router, useSegments } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Platform } from "react-native";
@@ -16,7 +16,6 @@ import { useReminderStore } from "../src/store/reminderStore";
 import * as Notifications from "expo-notifications";
 
 export default function RootLayout() {
-  const [firebaseReady, setFirebaseReady] = useState(false);
   const resetStore = useJournalStore((state) => state.reset);
   const setFirebaseReadyStore = useAuthStore((state) => state.setFirebaseReady);
   const setBackendReady = useAuthStore((state) => state.setBackendReady);
@@ -103,7 +102,6 @@ export default function RootLayout() {
     // 1. Wait for Firebase to initialize
     const unsub = onAuthStateChanged(auth, async (user) => {
       console.log("FIREBASE AUTH STATE:", user ? "LOGGED IN" : "LOGGED OUT");
-      setFirebaseReady(true);
       setFirebaseReadyStore(true);
       setUser(user);
 

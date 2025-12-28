@@ -8,7 +8,7 @@ export default function Bootstrap() {
         flex: 1,
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: "#ffffff",
+        backgroundColor: "#0C3591",
       }}
     >
       <Image

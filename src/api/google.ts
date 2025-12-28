@@ -3,6 +3,7 @@ import { auth } from "../firebase/config";
 import { GoogleAuthProvider, signInWithCredential } from "firebase/auth";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useAuthStore } from "../store/authStore";
 
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { apiPost } from "./client";
@@ -13,7 +14,9 @@ GoogleSignin.configure({
 });
 
 export async function signInWithGoogle() {
+    const setAuthLoading = useAuthStore.getState().setAuthLoading;
     try {
+        setAuthLoading(true);
         await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
         const signInResult = await GoogleSignin.signIn();
         if (signInResult.type !== "success") return;
@@ -51,6 +54,8 @@ export async function signInWithGoogle() {
     }catch (error: any) {
         if (error?.code === "SIGN_IN_CANCELLED") return;
         Alert.alert("Login failed", error.message ?? "Unknown error");
+    } finally {
+        setAuthLoading(false);
     }
 
 

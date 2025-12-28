@@ -7,11 +7,13 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiPost } from "../../src/api/client";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "@react-navigation/native";
+import { useAuthStore } from "../../src/store/authStore";
 
 export default function EmailAuthScreen() {
     const { colors, dark: isDark } = useTheme();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const setAuthLoading = useAuthStore((state) => state.setAuthLoading);
     const inputBackground = isDark ? "#1a1f2b" : "#fff";
     const inputBorder = isDark ? "#2f3645" : "#ccc";
     const mutedText = isDark ? "#8e95a6" : "#777";
@@ -28,11 +30,14 @@ export default function EmailAuthScreen() {
 
     const login = async () => {
         try {
+        setAuthLoading(true);
         await signInWithEmailAndPassword(auth, email, password);
         await exchangeBackendToken();
         router.replace("/(tabs)");
         } catch (err: any) {
         Alert.alert("Login Error", err.message);
+        } finally {
+        setAuthLoading(false);
         }
     };
 
