@@ -20,7 +20,7 @@ import { getPlanDaysByYear, savePlanDays } from "../../src/db/localDb";
 import { ACCENT_COLOR } from "../../src/theme";
 import { useStreakStore } from "../../src/store/streakStore";
 
-const PLAN_YEARS = [2024, 2025];
+const PLAN_YEARS = [2024, 2025, 2026];
 const SERMON_NOTES_LABEL = "Sermon Notes";
 const MONTHS = [
   "January",
@@ -82,6 +82,17 @@ export default function JournalListScreen() {
   const subtleText = isDark ? "#b9c0cf" : "#555";
   const mutedText = isDark ? "#8e95a6" : "#777";
   const chipBackground = isDark ? "#232936" : "#fff";
+  const listBackground = isDark ? colors.background : "#f2f2f2";
+  const cardBackground = isDark ? colors.card : "#fff";
+  const todayCardShadow = isDark
+    ? {}
+    : {
+        shadowColor: "#000",
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 3 },
+        elevation: 2,
+      };
 
   useFocusEffect(
     useCallback(() => {
@@ -382,7 +393,7 @@ export default function JournalListScreen() {
   return (
     <SafeAreaView
       edges={["top"]}
-      style={[styles.container, { backgroundColor: colors.background }]}
+      style={[styles.container, { backgroundColor: listBackground }]}
     >
       <FlatList
         data={journals}
@@ -399,9 +410,13 @@ export default function JournalListScreen() {
         ListHeaderComponent={
           <View style={[styles.header,]}>
             
-            <View style={[styles.todayCard, { backgroundColor: colors.card, gap: 10 }]}>
-              
-              <View style={{ marginTop: 1 }} />
+            <View
+              style={[
+                styles.todayCard,
+                { backgroundColor: cardBackground, gap: 10 },
+                todayCardShadow,
+              ]}
+            >
               <View style={styles.todayRow}>
 
                 <View style={styles.todayInfo}>
@@ -431,7 +446,7 @@ export default function JournalListScreen() {
                 </View>
                   <View >
                     <View style={[styles.streakRow]}>
-                      <View style={[styles.streakPill, { backgroundColor: colors.card }]}>
+                      <View style={[styles.streakPill, { backgroundColor: cardBackground }]}>
             
                         <Text style={[styles.streakValue, { color: colors.text }]}>
                           {currentStreak}
@@ -458,7 +473,6 @@ export default function JournalListScreen() {
                   </View>
                   
               </View>
-              <View style={{ marginTop: 1 }} />
             </View>
             {statusText ? (
               <Animated.View
@@ -485,7 +499,7 @@ export default function JournalListScreen() {
         }
         renderItem={({ item }) => (
           <Pressable
-            style={[styles.card, { backgroundColor: colors.card, margin: 10 }]}
+            style={[styles.card, { backgroundColor: cardBackground, margin: 10 }]}
             onPress={() => handleOpen(item._id)}
             onLongPress={() => confirmSoftDelete(item._id)}
           >

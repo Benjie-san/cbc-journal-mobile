@@ -30,7 +30,7 @@ type PlanDay = {
   journalEntryId?: string | null;
 };
 
-const YEAR_OPTIONS = [2024, 2025];
+const YEAR_OPTIONS = [2024, 2025, 2026];
 const SERMON_NOTES_LABEL = "Sermon Notes";
 const MONTHS = [
   "January",
@@ -48,7 +48,7 @@ const MONTHS = [
 ];
 const AUTO_SCROLL_MONTH = MONTHS[new Date().getMonth()];
 const SCROLL_OFFSET = 12;
-const PLAN_TIMEOUT_MS = 2500;
+const PLAN_TIMEOUT_MS = 6000;
 
 const normalizeRef = (value: string) => value.trim().toLowerCase();
 

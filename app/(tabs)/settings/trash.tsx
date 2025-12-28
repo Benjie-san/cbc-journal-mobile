@@ -17,6 +17,7 @@ export default function TrashScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const subtleText = isDark ? "#b9c0cf" : "#555";
   const mutedText = isDark ? "#8e95a6" : "#888";
+  const cardBackground = isDark ? colors.card : "#f2f2f2";
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
@@ -94,7 +95,7 @@ export default function TrashScreen() {
 
           return (
             <Pressable
-              style={[styles.card, { backgroundColor: colors.card }]}
+              style={[styles.card, { backgroundColor: cardBackground }]}
               onPress={() => confirmRestore(item._id)}
               onLongPress={() => confirmDelete(item._id)}
             >

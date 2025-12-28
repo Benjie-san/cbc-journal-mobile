@@ -27,7 +27,7 @@ export default function RootLayout() {
   const segments = useSegments();
   const inAuthGroup = segments[0] === "(auth)";
   const isRoot = segments.length === 0 || segments[0] === "index";
-  const OFFLINE_TIMEOUT_MS = 1500;
+  const OFFLINE_TIMEOUT_MS = 6000;
 
   useEffect(() => {
     Notifications.setNotificationHandler({

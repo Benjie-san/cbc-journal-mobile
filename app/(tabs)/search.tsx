@@ -27,6 +27,8 @@ export default function SearchScreen() {
   const chipBackground = isDark ? "#1f2430" : "#f2f2f2";
   const inputBackground = isDark ? "#1a1f2b" : "#fff";
   const inputBorder = isDark ? "#2f3645" : "#ccc";
+  const listBackground = isDark ? colors.background : "#f2f2f2";
+  const cardBackground = isDark ? colors.card : "#fff";
 
   useFocusEffect(
     useCallback(() => {
@@ -108,7 +110,7 @@ export default function SearchScreen() {
   return (
     <SafeAreaView
       edges={["top"]}
-      style={[styles.container, { backgroundColor: colors.background }]}
+      style={[styles.container, { backgroundColor: listBackground }]}
     >
       <FlatList
         data={filteredJournals}
@@ -192,7 +194,7 @@ export default function SearchScreen() {
         }
         renderItem={({ item }) => (
           <Pressable
-            style={[styles.card, { backgroundColor: colors.card }]}
+            style={[styles.card, { backgroundColor: cardBackground }]}
             onPress={() => handleOpen(item._id)}
           >
             <Text style={[styles.cardTitle, { color: colors.text }]}>
