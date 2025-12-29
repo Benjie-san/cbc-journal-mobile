@@ -16,7 +16,7 @@ GoogleSignin.configure({
 export async function signInWithGoogle() {
     const setAuthLoading = useAuthStore.getState().setAuthLoading;
     try {
-        setAuthLoading(true);
+        setAuthLoading(true, "Signing in...");
         await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
         const signInResult = await GoogleSignin.signIn();
         if (signInResult.type !== "success") return;

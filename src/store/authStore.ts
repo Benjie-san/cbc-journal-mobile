@@ -6,11 +6,12 @@ interface AuthStore {
     backendReady: boolean;
     user: User | null;
     authLoading: boolean;
+    authLoadingMessage: string;
 
     setFirebaseReady: (ready: boolean) => void;
     setBackendReady: (ready: boolean) => void;
     setUser: (user: User | null) => void;
-    setAuthLoading: (loading: boolean) => void;
+    setAuthLoading: (loading: boolean, message?: string) => void;
 
     reset: () => void;
 }
@@ -20,6 +21,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
     backendReady: false,
     user: null,
     authLoading: false,
+    authLoadingMessage: "",
 
     setFirebaseReady: (firebaseReady) => set({ firebaseReady }),
 
@@ -27,7 +29,16 @@ export const useAuthStore = create<AuthStore>((set) => ({
 
     setUser: (user) => set({ user }),
 
-    setAuthLoading: (authLoading) => set({ authLoading }),
+    setAuthLoading: (authLoading, message) =>
+        set((state) => ({
+            authLoading,
+            authLoadingMessage:
+                message !== undefined
+                    ? message
+                    : authLoading
+                    ? state.authLoadingMessage
+                    : "",
+        })),
 
     reset: () =>
         set({
@@ -35,5 +46,6 @@ export const useAuthStore = create<AuthStore>((set) => ({
             backendReady: false,
             user: null,
             authLoading: false,
+            authLoadingMessage: "",
         }),
 }));

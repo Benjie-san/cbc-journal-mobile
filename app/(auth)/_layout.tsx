@@ -6,6 +6,7 @@ import { useAuthStore } from "../../src/store/authStore";
 export default function AuthLayout() {
     const { colors } = useTheme();
     const authLoading = useAuthStore((state) => state.authLoading);
+    const authLoadingMessage = useAuthStore((state) => state.authLoadingMessage);
 
     return (
         <>
@@ -20,7 +21,7 @@ export default function AuthLayout() {
                     <View style={[styles.card, { backgroundColor: colors.card }]}>
                         <ActivityIndicator size="small" color={colors.primary} />
                         <Text style={[styles.text, { color: colors.text }]}>
-                            Signing in...
+                            {authLoadingMessage || "Signing in..."}
                         </Text>
                     </View>
                 </View>

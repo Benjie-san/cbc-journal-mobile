@@ -30,7 +30,7 @@ export default function EmailAuthScreen() {
 
     const login = async () => {
         try {
-        setAuthLoading(true);
+        setAuthLoading(true, "Signing in...");
         await signInWithEmailAndPassword(auth, email, password);
         await exchangeBackendToken();
         router.replace("/(tabs)");

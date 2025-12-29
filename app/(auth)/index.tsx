@@ -1,7 +1,11 @@
 import { useState } from "react";
 import { Link } from "expo-router";
-import { View, Text, Button, StyleSheet, TextInput, Pressable, Image, Alert } from "react-native";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { View, Text, StyleSheet, TextInput, Pressable, Image, Alert, Modal } from "react-native";
+import {
+    sendEmailVerification,
+    sendPasswordResetEmail,
+    signInWithEmailAndPassword,
+} from "firebase/auth";
 import { auth } from "../../src/firebase/config";
 import { signInWithGoogle } from "../../src/api/google";
 import { GoogleSigninButton } from "@react-native-google-signin/google-signin";
@@ -11,6 +15,7 @@ import { apiPost } from "../../src/api/client";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuthStore } from "../../src/store/authStore";
+import { ACCENT_COLOR } from "../../src/theme";
 
 export default function AuthIndex() {
     const { colors, dark: isDark } = useTheme();
@@ -18,6 +23,8 @@ export default function AuthIndex() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
+    const [showResetModal, setShowResetModal] = useState(false);
+    const [resetEmail, setResetEmail] = useState("");
     const inputBackground = isDark ? "#1a1f2b" : "#fff";
     const inputBorder = isDark ? "#2f3645" : "#ccc";
     const mutedText = isDark ? "#8e95a6" : "#777";
@@ -34,11 +41,42 @@ export default function AuthIndex() {
 
     const loginWithEmail = async () => {
         try {
-            setAuthLoading(true);
+            setAuthLoading(true, "Signing in...");
             await signInWithEmailAndPassword(auth, email.trim(), password);
+            const user = auth.currentUser;
+            if (user && !user.emailVerified) {
+                await sendEmailVerification(user);
+                Alert.alert(
+                    "Verify your email",
+                    "We sent a verification link to your email. Please verify to continue."
+                );
+                return;
+            }
             await exchangeBackendToken();
         } catch (err: any) {
             Alert.alert("Login Error", err?.message ?? "Unable to sign in");
+        } finally {
+            setAuthLoading(false);
+        }
+    };
+
+    const handleForgotPassword = () => {
+        setResetEmail(email.trim());
+        setShowResetModal(true);
+    };
+
+    const handleSendReset = async () => {
+        if (!resetEmail.trim()) {
+            Alert.alert("Forgot Password", "Enter your email first.");
+            return;
+        }
+        setShowResetModal(false);
+        try {
+            setAuthLoading(true, "Processing...");
+            await sendPasswordResetEmail(auth, resetEmail.trim());
+            Alert.alert("Email sent", "Check your inbox to reset your password.");
+        } catch (err: any) {
+            Alert.alert("Reset failed", err?.message ?? "Unable to send reset email.");
         } finally {
             setAuthLoading(false);
         }
@@ -90,7 +128,7 @@ export default function AuthIndex() {
                     />
                 </Pressable>
             </View>
-            <Pressable onPress={() => Alert.alert("Forgot Password", "Coming soon.")}>
+            <Pressable onPress={handleForgotPassword}>
                 <Text style={[styles.forgot, { color: mutedText }]}>Forgot Password?</Text>
             </Pressable>
 
@@ -116,6 +154,51 @@ export default function AuthIndex() {
                 </Text>
             </Pressable>
         </Link>
+        <Modal
+            visible={showResetModal}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setShowResetModal(false)}
+        >
+            <View style={styles.modalBackdrop}>
+                <View style={[styles.modalCard, { backgroundColor: colors.card }]}>
+                    <Text style={[styles.modalTitle, { color: colors.text }]}>
+                        Forgot Password
+                    </Text>
+                    <Text style={[styles.modalBody, { color: mutedText }]}>
+                        Enter the email linked to your account.
+                    </Text>
+                    <TextInput
+                        value={resetEmail}
+                        onChangeText={setResetEmail}
+                        placeholder="Email"
+                        autoCapitalize="none"
+                        keyboardType="email-address"
+                        placeholderTextColor={mutedText}
+                        style={[
+                            styles.resetInput,
+                            { backgroundColor: inputBackground, borderColor: inputBorder, color: colors.text },
+                        ]}
+                    />
+                    <View style={styles.modalActions}>
+                        <Pressable
+                            style={[styles.modalButton, styles.modalButtonGhost]}
+                            onPress={() => setShowResetModal(false)}
+                        >
+                            <Text style={[styles.modalButtonText, { color: mutedText }]}>
+                                Cancel
+                            </Text>
+                        </Pressable>
+                        <Pressable
+                            style={[styles.modalButton, styles.modalButtonPrimary]}
+                            onPress={handleSendReset}
+                        >
+                            <Text style={styles.modalButtonPrimaryText}>Send</Text>
+                        </Pressable>
+                    </View>
+                </View>
+            </View>
+        </Modal>
         </SafeAreaView>
     );
 }
@@ -149,4 +232,40 @@ const styles = StyleSheet.create({
     signUpWrap: { marginTop: 18, alignItems: "center" },
     signUpText: { fontSize: 12 },
     signUpLink: { color: "#0C3591", fontWeight: "600" },
+    modalBackdrop: {
+        flex: 1,
+        backgroundColor: "rgba(0,0,0,0.35)",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 24,
+    },
+    modalCard: {
+        width: "100%",
+        borderRadius: 12,
+        padding: 16,
+    },
+    modalTitle: { fontSize: 16, fontWeight: "600", marginBottom: 6 },
+    modalBody: { fontSize: 14, marginBottom: 12 },
+    resetInput: {
+        borderWidth: 1,
+        borderRadius: 8,
+        paddingHorizontal: 10,
+        paddingVertical: 10,
+    },
+    modalActions: {
+        flexDirection: "row",
+        justifyContent: "flex-end",
+        gap: 10,
+        marginTop: 16,
+    },
+    modalButton: {
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 8,
+    },
+    modalButtonGhost: { backgroundColor: "transparent" },
+    modalButtonPrimary: { backgroundColor: ACCENT_COLOR },
+    modalButtonDisabled: { opacity: 0.5 },
+    modalButtonText: { fontWeight: "600" },
+    modalButtonPrimaryText: { color: "#fff", fontWeight: "600" },
 });

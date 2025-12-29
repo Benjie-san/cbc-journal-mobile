@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { View, Text, TextInput, Button, Alert, StyleSheet, Pressable, Modal } from "react-native";
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import { View, Text, TextInput, Alert, StyleSheet, Pressable, Modal } from "react-native";
+import { createUserWithEmailAndPassword, sendEmailVerification } from "firebase/auth";
 import { auth } from "../../src/firebase/config";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "@react-navigation/native";
@@ -48,9 +48,14 @@ export default function SignupScreen() {
             Alert.alert("Invalid password", "Please check the requirements.");
             return;
         }
-        setAuthLoading(true);
-        await createUserWithEmailAndPassword(auth, email.trim(), pass);
-        Alert.alert("Account created!");
+        setAuthLoading(true, "Signing up...");
+        const credential = await createUserWithEmailAndPassword(auth, email.trim(), pass);
+        await sendEmailVerification(credential.user);
+        Alert.alert(
+            "Verify your email",
+            "We sent a verification link to your email. Please verify to continue."
+        );
+        router.replace("/(auth)/verify-email");
         } catch (err: any) {
         Alert.alert("Error", err.message);
         } finally {

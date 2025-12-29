@@ -68,10 +68,7 @@ export default function BRP() {
   const sectionOffsets = useRef<Record<string, number>>({});
   const pendingScrollMonth = useRef<string | null>(null);
   const autoExpandRef = useRef(false);
-  const currentYear = new Date().getFullYear();
-  const defaultYear = YEAR_OPTIONS.includes(currentYear)
-    ? currentYear
-    : YEAR_OPTIONS[YEAR_OPTIONS.length - 1];
+  const defaultYear = YEAR_OPTIONS[YEAR_OPTIONS.length - 1];
   const [yearMenuOpen, setYearMenuOpen] = useState(false);
   const [planByMonth, setPlanByMonth] = useState<Record<string, PlanDay[]>>({});
   const [expandedMonths, setExpandedMonths] = useState<Record<string, boolean>>(

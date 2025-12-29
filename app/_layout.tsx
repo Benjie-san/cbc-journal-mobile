@@ -26,6 +26,7 @@ export default function RootLayout() {
   const hydrateStreak = useStreakStore((state) => state.hydrate);
   const segments = useSegments();
   const inAuthGroup = segments[0] === "(auth)";
+  const isVerifyScreen = inAuthGroup && segments[1] === "verify-email";
   const isRoot = segments.length === 0 || segments[0] === "index";
   const OFFLINE_TIMEOUT_MS = 6000;
 
@@ -111,6 +112,17 @@ export default function RootLayout() {
         await AsyncStorage.removeItem("backendToken");
         if (!inAuthGroup) {
           router.replace("/(auth)");
+        }
+        return;
+      }
+
+      const isPasswordUser = user.providerData.some(
+        (provider) => provider.providerId === "password"
+      );
+      if (isPasswordUser && !user.emailVerified) {
+        setBackendReady(false);
+        if (!isVerifyScreen) {
+          router.replace("/(auth)/verify-email");
         }
         return;
       }
