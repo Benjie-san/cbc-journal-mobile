@@ -16,6 +16,7 @@ import { useStreakStore } from "../../../src/store/streakStore";
 import { clearLocalJournals } from "../../../src/db/localDb";
 import { useEffect, useState } from "react";
 import { deleteSecureItem } from "../../../src/storage/secureStorage";
+import { apiPost } from "../../../src/api/client";
 
 export default function Settings() {
   const resetStore = useJournalStore((state) => state.reset);
@@ -48,8 +49,17 @@ export default function Settings() {
     setIsPm(reminderHour >= 12);
   }, [reminderHour, reminderMinute]);
 
+  const revokeSessions = async () => {
+    try {
+      await apiPost("/auth/revoke", {}, true, 6000);
+    } catch (err) {
+      console.log("Revoke sessions failed:", err);
+    }
+  };
+
   const handleLogout = async () => {
     try {
+      await revokeSessions();
       await signOut(auth);
       await deleteSecureItem("backendToken");
       await AsyncStorage.removeItem("authToken");
@@ -61,6 +71,21 @@ export default function Settings() {
     } catch (err: any) {
       Alert.alert("Logout failed", err?.message ?? "Unknown error");
     }
+  };
+
+  const handleLogoutEverywhere = async () => {
+    Alert.alert(
+      "Log out everywhere",
+      "This will sign you out on all devices. Continue?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Log out",
+          style: "destructive",
+          onPress: handleLogout,
+        },
+      ]
+    );
   };
 
   const handleToggleReminder = async (value: boolean) => {
@@ -250,7 +275,10 @@ export default function Settings() {
         <Ionicons name="chevron-forward" size={20} color={colors.border} />
       </Pressable>
 
-      <Button title="Log out" onPress={handleLogout} />
+      <View style={styles.logoutActions}>
+        <Button title="Log out everywhere" onPress={handleLogoutEverywhere} />
+        <Button title="Log out" onPress={handleLogout} />
+      </View>
     </SafeAreaView>
   );
 }
@@ -320,4 +348,5 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   saveButtonText: { color: "#fff", fontWeight: "600", fontSize: 12 },
+  logoutActions: { gap: 10 },
 });

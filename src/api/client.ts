@@ -1,6 +1,8 @@
 import { Platform } from "react-native";
+import { signOut } from "firebase/auth";
+import { auth } from "../firebase/config";
 import Constants from "expo-constants";
-import { getSecureItem } from "../storage/secureStorage";
+import { deleteSecureItem, getSecureItem } from "../storage/secureStorage";
 
 const DEFAULT_HOST = Platform.OS === "android" ? "10.0.2.2" : "localhost";
 
@@ -45,6 +47,7 @@ async function getHeaders(withAuth: boolean) {
 }
 
 const DEFAULT_TIMEOUT_MS = 8000;
+const MAX_429_RETRIES = 1;
 
 async function parseBody(res: Response) {
   const text = await res.text();
@@ -54,6 +57,23 @@ async function parseBody(res: Response) {
   } catch {
     return text;
   }
+}
+
+function parseRetryAfter(headerValue: string | null) {
+  if (!headerValue) return null;
+  const seconds = Number(headerValue);
+  if (Number.isFinite(seconds)) {
+    return Math.max(seconds * 1000, 0);
+  }
+  const date = Date.parse(headerValue);
+  if (!Number.isNaN(date)) {
+    return Math.max(date - Date.now(), 0);
+  }
+  return null;
+}
+
+async function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function fetchWithTimeout(
@@ -79,26 +99,69 @@ async function fetchWithTimeout(
   }
 }
 
+async function requestWithRetry(
+  url: string,
+  options: RequestInit,
+  timeoutMs: number,
+  maxRetries = MAX_429_RETRIES
+) {
+  let attempt = 0;
+  while (true) {
+    const res = await fetchWithTimeout(url, options, timeoutMs);
+    if (res.status !== 429 || attempt >= maxRetries) {
+      return res;
+    }
+    const retryAfterMs = parseRetryAfter(res.headers.get("Retry-After"));
+    const backoffMs = retryAfterMs ?? Math.min(1000 * 2 ** attempt, 4000);
+    attempt += 1;
+    await sleep(backoffMs);
+  }
+}
+
 function buildError(res: Response, data: any) {
-  const message =
+  let message =
     typeof data === "string"
       ? data
       : data?.error || data?.message || res.statusText;
+  if (res.status === 429) {
+    message = "Too many requests. Please wait and try again.";
+  }
   const err = new Error(message || "Request failed") as Error & {
     status?: number;
     data?: any;
+    retryAfterMs?: number;
   };
   err.status = res.status;
   err.data = data;
+  if (res.status === 429) {
+    err.retryAfterMs = parseRetryAfter(res.headers.get("Retry-After")) ?? undefined;
+  }
   return err;
 }
 
 async function handleResponse(res: Response) {
   const data = await parseBody(res);
   if (!res.ok) {
+    if (res.status === 401 && data?.error === "Session revoked") {
+      await handleSessionRevoked();
+    }
     throw buildError(res, data);
   }
   return data;
+}
+
+let sessionRevokeInFlight = false;
+async function handleSessionRevoked() {
+  if (sessionRevokeInFlight) return;
+  sessionRevokeInFlight = true;
+  try {
+    await deleteSecureItem("backendToken");
+    await signOut(auth);
+  } catch {
+    // Ignore sign-out failures; auth state listener will handle cleanup if it succeeds.
+  } finally {
+    sessionRevokeInFlight = false;
+  }
 }
 
 export async function apiGet(
@@ -106,7 +169,7 @@ export async function apiGet(
   withAuth = true,
   timeoutMs = DEFAULT_TIMEOUT_MS
 ) {
-  const res = await fetchWithTimeout(
+  const res = await requestWithRetry(
     `${API_BASE}${path}`,
     {
       headers: await getHeaders(withAuth),
@@ -123,7 +186,7 @@ export async function apiPost(
   withAuth = true,
   timeoutMs = DEFAULT_TIMEOUT_MS
 ) {
-  const res = await fetchWithTimeout(
+  const res = await requestWithRetry(
     `${API_BASE}${path}`,
     {
       method: "POST",
@@ -142,7 +205,7 @@ export async function apiPut(
   withAuth = true,
   timeoutMs = DEFAULT_TIMEOUT_MS
 ) {
-  const res = await fetchWithTimeout(
+  const res = await requestWithRetry(
     `${API_BASE}${path}`,
     {
       method: "PUT",
@@ -160,7 +223,7 @@ export async function apiDelete(
   withAuth = true,
   timeoutMs = DEFAULT_TIMEOUT_MS
 ) {
-  const res = await fetchWithTimeout(
+  const res = await requestWithRetry(
     `${API_BASE}${path}`,
     {
       method: "DELETE",

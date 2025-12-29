@@ -7,6 +7,7 @@ import { useStreakStore } from "../store/streakStore";
 import { clearLocalJournals } from "../db/localDb";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { deleteSecureItem } from "../storage/secureStorage";
+import { apiPost } from "../api/client";
 
 export default function LogoutComponent(){
     const resetStore = useJournalStore((state) => state.reset);
@@ -14,6 +15,11 @@ export default function LogoutComponent(){
     const resetStreak = useStreakStore((state) => state.reset);
 
     const logout = async () => {
+        try {
+            await apiPost("/auth/revoke", {}, true, 6000);
+        } catch (err) {
+            console.log("Revoke sessions failed:", err);
+        }
         await auth.signOut();
         await deleteSecureItem("backendToken");
         await AsyncStorage.removeItem("authToken");
