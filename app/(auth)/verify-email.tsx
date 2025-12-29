@@ -5,12 +5,12 @@ import { useTheme } from "@react-navigation/native";
 import { auth } from "../../src/firebase/config";
 import { sendEmailVerification } from "firebase/auth";
 import { apiGet, apiPost } from "../../src/api/client";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuthStore } from "../../src/store/authStore";
 import { useJournalStore } from "../../src/store/journalStore";
 import { useStreakStore } from "../../src/store/streakStore";
 import { router } from "expo-router";
 import { ACCENT_COLOR } from "../../src/theme";
+import { setSecureItem } from "../../src/storage/secureStorage";
 
 export default function VerifyEmailScreen() {
     const { colors, dark: isDark } = useTheme();
@@ -26,7 +26,7 @@ export default function VerifyEmailScreen() {
         const data = await apiPost("/auth", { idToken }, false);
         const token = data?.token;
         if (!token) throw new Error("No backend token received");
-        await AsyncStorage.setItem("backendToken", token);
+        await setSecureItem("backendToken", token);
         return token;
     };
 

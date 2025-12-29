@@ -1,6 +1,10 @@
 import { useMemo, useState } from "react";
 import { View, Text, TextInput, Alert, StyleSheet, Pressable, Modal } from "react-native";
-import { createUserWithEmailAndPassword, sendEmailVerification } from "firebase/auth";
+import {
+    createUserWithEmailAndPassword,
+    fetchSignInMethodsForEmail,
+    sendEmailVerification,
+} from "firebase/auth";
 import { auth } from "../../src/firebase/config";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "@react-navigation/native";
@@ -48,8 +52,17 @@ export default function SignupScreen() {
             Alert.alert("Invalid password", "Please check the requirements.");
             return;
         }
+        const trimmedEmail = email.trim();
         setAuthLoading(true, "Signing up...");
-        const credential = await createUserWithEmailAndPassword(auth, email.trim(), pass);
+        const methods = await fetchSignInMethodsForEmail(auth, trimmedEmail);
+        if (methods.includes("google.com")) {
+            Alert.alert(
+                "Use Google Sign-in",
+                "This email is linked to Google. Please sign up with Google instead."
+            );
+            return;
+        }
+        const credential = await createUserWithEmailAndPassword(auth, trimmedEmail, pass);
         await sendEmailVerification(credential.user);
         Alert.alert(
             "Verify your email",

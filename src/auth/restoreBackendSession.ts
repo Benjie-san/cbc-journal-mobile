@@ -1,5 +1,4 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { apiGet } from "@/src/api/client";
+import { deleteSecureItem, getSecureItem } from "../storage/secureStorage";
 
 /**
  * Restores backend session if token exists
@@ -8,7 +7,7 @@ import { apiGet } from "@/src/api/client";
 let backendToken: string | null = null;
 
 export async function restoreBackendSession() {
-    const token = await AsyncStorage.getItem("backendToken");
+    const token = await getSecureItem("backendToken");
 
     if (!token) {
         throw new Error("No backend token");
@@ -24,7 +23,7 @@ export async function restoreBackendSession() {
     });
 
     if (!res.ok) {
-        await AsyncStorage.removeItem("backendToken");
+        await deleteSecureItem("backendToken");
         throw new Error("Backend session invalid");
     }
 

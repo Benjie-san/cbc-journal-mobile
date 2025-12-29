@@ -1,6 +1,6 @@
 import { Platform } from "react-native";
 import Constants from "expo-constants";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getSecureItem } from "../storage/secureStorage";
 
 const DEFAULT_HOST = Platform.OS === "android" ? "10.0.2.2" : "localhost";
 
@@ -32,7 +32,7 @@ async function getAuthHeaders() {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
-  const token = await AsyncStorage.getItem("backendToken");
+  const token = await getSecureItem("backendToken");
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }

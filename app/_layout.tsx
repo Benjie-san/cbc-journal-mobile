@@ -3,7 +3,6 @@ import { Stack, router, useSegments } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Platform } from "react-native";
 import { onAuthStateChanged, type User } from "firebase/auth";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { auth } from "../src/firebase/config";
 import { apiGet, apiPost } from "../src/api/client";
 import { useJournalStore } from "../src/store/journalStore";
@@ -14,6 +13,11 @@ import { useThemeStore } from "../src/store/themeStore";
 import { useStreakStore } from "../src/store/streakStore";
 import { useReminderStore } from "../src/store/reminderStore";
 import * as Notifications from "expo-notifications";
+import {
+  deleteSecureItem,
+  getSecureItem,
+  setSecureItem,
+} from "../src/storage/secureStorage";
 
 export default function RootLayout() {
   const resetStore = useJournalStore((state) => state.reset);
@@ -96,7 +100,7 @@ export default function RootLayout() {
       );
       const token = data?.token;
       if (!token) return null;
-      await AsyncStorage.setItem("backendToken", token);
+      await setSecureItem("backendToken", token);
       return token;
     };
 
@@ -109,7 +113,7 @@ export default function RootLayout() {
       if (!user) {
         resetStore();
         resetAuth();
-        await AsyncStorage.removeItem("backendToken");
+        await deleteSecureItem("backendToken");
         if (!inAuthGroup) {
           router.replace("/(auth)");
         }
@@ -134,7 +138,7 @@ export default function RootLayout() {
       }
 
       // 2. Check backend token
-      let token = await AsyncStorage.getItem("backendToken");
+      let token = await getSecureItem("backendToken");
       console.log("LOADED backendToken:", token);
 
       if (!token) {
@@ -188,7 +192,7 @@ export default function RootLayout() {
             console.log("Backend session restore failed:", retryErr);
             resetStore();
             resetAuth();
-            await AsyncStorage.removeItem("backendToken");
+            await deleteSecureItem("backendToken");
             if (!inAuthGroup) {
               router.replace("/(auth)");
             }

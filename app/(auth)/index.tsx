@@ -7,15 +7,15 @@ import {
     signInWithEmailAndPassword,
 } from "firebase/auth";
 import { auth } from "../../src/firebase/config";
-import { signInWithGoogle } from "../../src/api/google";
+import { linkPendingGoogleCredential, signInWithGoogle } from "../../src/api/google";
 import { GoogleSigninButton } from "@react-native-google-signin/google-signin";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "@react-navigation/native";
 import { apiPost } from "../../src/api/client";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuthStore } from "../../src/store/authStore";
 import { ACCENT_COLOR } from "../../src/theme";
+import { setSecureItem } from "../../src/storage/secureStorage";
 
 export default function AuthIndex() {
     const { colors, dark: isDark } = useTheme();
@@ -36,7 +36,7 @@ export default function AuthIndex() {
         const data = await apiPost("/auth", { idToken }, false);
         const token = data?.token;
         if (!token) throw new Error("No backend token received");
-        await AsyncStorage.setItem("backendToken", token);
+        await setSecureItem("backendToken", token);
     };
 
     const loginWithEmail = async () => {
@@ -51,6 +51,9 @@ export default function AuthIndex() {
                     "We sent a verification link to your email. Please verify to continue."
                 );
                 return;
+            }
+            if (user) {
+                await linkPendingGoogleCredential(user);
             }
             await exchangeBackendToken();
         } catch (err: any) {

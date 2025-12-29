@@ -1,4 +1,3 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Button, View } from "react-native";
 import { router } from "expo-router";
 import { auth } from "../firebase/config";
@@ -6,6 +5,8 @@ import { useJournalStore } from "../store/journalStore";
 import { useAuthStore } from "../store/authStore";
 import { useStreakStore } from "../store/streakStore";
 import { clearLocalJournals } from "../db/localDb";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { deleteSecureItem } from "../storage/secureStorage";
 
 export default function LogoutComponent(){
     const resetStore = useJournalStore((state) => state.reset);
@@ -14,7 +15,8 @@ export default function LogoutComponent(){
 
     const logout = async () => {
         await auth.signOut();
-        await AsyncStorage.multiRemove(["backendToken", "authToken"]);
+        await deleteSecureItem("backendToken");
+        await AsyncStorage.removeItem("authToken");
         await clearLocalJournals();
         resetStore();
         await resetStreak();

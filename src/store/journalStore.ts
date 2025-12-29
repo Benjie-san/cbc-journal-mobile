@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiGet, apiPost, apiPut, apiDelete } from "../api/client";
 import { auth } from "../firebase/config";
 import { JournalEntry } from "../types/Journal";
@@ -14,6 +13,7 @@ import {
     upsertJournalFromServer,
 } from "../db/localDb";
 import { useStreakStore } from "./streakStore";
+import { getSecureItem, setSecureItem } from "../storage/secureStorage";
 
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
 const SYNC_TIMEOUT_MS = 2500;
@@ -60,7 +60,7 @@ interface JournalStore {
 }
 
 const getOrCreateBackendToken = async () => {
-    let token = await AsyncStorage.getItem("backendToken");
+    let token = await getSecureItem("backendToken");
     if (token) return token;
     const user = auth.currentUser;
     if (!user) return null;
@@ -68,7 +68,7 @@ const getOrCreateBackendToken = async () => {
     const data = await apiPost("/auth", { idToken }, false, AUTH_TIMEOUT_MS);
     token = data?.token ?? null;
     if (token) {
-        await AsyncStorage.setItem("backendToken", token);
+        await setSecureItem("backendToken", token);
     }
     return token;
 };

@@ -15,6 +15,7 @@ import { useReminderStore } from "../../../src/store/reminderStore";
 import { useStreakStore } from "../../../src/store/streakStore";
 import { clearLocalJournals } from "../../../src/db/localDb";
 import { useEffect, useState } from "react";
+import { deleteSecureItem } from "../../../src/storage/secureStorage";
 
 export default function Settings() {
   const resetStore = useJournalStore((state) => state.reset);
@@ -50,7 +51,8 @@ export default function Settings() {
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      await AsyncStorage.multiRemove(["backendToken", "authToken"]);
+      await deleteSecureItem("backendToken");
+      await AsyncStorage.removeItem("authToken");
       await clearLocalJournals();
       resetStore();
       await resetStreak();

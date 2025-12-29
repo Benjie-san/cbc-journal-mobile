@@ -3,11 +3,12 @@ import { View, Text, TextInput, Button, Alert, StyleSheet } from "react-native";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../../src/firebase/config";
 import { router } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiPost } from "../../src/api/client";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "@react-navigation/native";
 import { useAuthStore } from "../../src/store/authStore";
+import { linkPendingGoogleCredential } from "../../src/api/google";
+import { setSecureItem } from "../../src/storage/secureStorage";
 
 export default function EmailAuthScreen() {
     const { colors, dark: isDark } = useTheme();
@@ -25,13 +26,17 @@ export default function EmailAuthScreen() {
         const data = await apiPost("/auth", { idToken }, false);
         const token = data?.token;
         if (!token) throw new Error("No backend token received");
-        await AsyncStorage.setItem("backendToken", token);
+        await setSecureItem("backendToken", token);
     };
 
     const login = async () => {
         try {
         setAuthLoading(true, "Signing in...");
         await signInWithEmailAndPassword(auth, email, password);
+        const user = auth.currentUser;
+        if (user) {
+            await linkPendingGoogleCredential(user);
+        }
         await exchangeBackendToken();
         router.replace("/(tabs)");
         } catch (err: any) {
