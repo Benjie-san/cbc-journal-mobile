@@ -627,38 +627,59 @@ export default function JournalEditor(props: EditorProps) {
                 ) : undefined
             }
         >
-            <TextInput
-                style={[
-                    styles.title,
-                    { color: colors.text, borderBottomColor: inputBorder },
-                ]}
-                placeholder="Title"
-                placeholderTextColor={mutedText}
-                value={title}
-                onChangeText={onChangeTitle}
-            />
+            <View style={styles.field}>
+                <Text style={[styles.fieldLabel, { color: colors.text }]}>
+                    Scripture
+                </Text>
+                <View style={styles.scriptureInlineRow}>
+                    <View
+                        style={[
+                            styles.scriptureRow,
+                            { backgroundColor: inputBackground, borderColor: inputBorder },
+                        ]}
+                    >
+                        <TextInput
+                            style={[
+                                styles.scriptureRef,
+                                {
+                                    color: colors.text,
+                                    flex: 1,
+                                },
+                            ]}
+                            placeholder="John 3:16-21"
+                            placeholderTextColor={mutedText}
+                            value={scriptureRef}
+                            onChangeText={onChangeScriptureRef}
+                        />
 
-            <View
-                style={[
-                    styles.scriptureRow,
-                    { backgroundColor: inputBackground, borderColor: inputBorder },
-                ]}
-            >
-                <TextInput
-                    style={[
-                        styles.scriptureRef,
-                        {
-                            color: colors.text,
-                            flex: 1,
-                        },
-                    ]}
-                    placeholder="Scripture reference"
-                    placeholderTextColor={mutedText}
-                    value={scriptureRef}
-                    onChangeText={onChangeScriptureRef}
-                />
-
-                <View style={styles.scriptureActions}>
+                        <View style={styles.scriptureActions}>
+                            {bibleOpen ? (
+                                <Pressable
+                                    style={styles.translationButton}
+                                    onPress={cycleTranslation}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Change translation"
+                                >
+                                    <Text style={styles.translationButtonText}>
+                                        {translationKey}
+                                    </Text>
+                                </Pressable>
+                            ) : null}
+                            <Pressable
+                                style={styles.bibleButton}
+                                onPress={toggleBible}
+                                accessibilityRole="button"
+                                accessibilityLabel="Toggle Bible"
+                            >
+                                <Ionicons
+                                    name={bibleOpen ? "chevron-up" : "chevron-down"}
+                                size={18}
+                                color={ACCENT_COLOR}
+                            />
+                        </Pressable>
+                    </View>
+            
+                </View>
                     {props.mode === "create" && !props.fromBrp ? (
                         <Pressable
                             style={styles.brpInline}
@@ -670,30 +691,6 @@ export default function JournalEditor(props: EditorProps) {
                             <Text style={styles.brpInlineText}>BRP</Text>
                         </Pressable>
                     ) : null}
-                    {bibleOpen ? (
-                        <Pressable
-                            style={styles.translationButton}
-                            onPress={cycleTranslation}
-                            accessibilityRole="button"
-                            accessibilityLabel="Change translation"
-                        >
-                            <Text style={styles.translationButtonText}>
-                                {translationKey}
-                            </Text>
-                        </Pressable>
-                    ) : null}
-                    <Pressable
-                        style={styles.bibleButton}
-                        onPress={toggleBible}
-                        accessibilityRole="button"
-                        accessibilityLabel="Toggle Bible"
-                    >
-                        <Ionicons
-                            name={bibleOpen ? "chevron-up" : "chevron-down"}
-                            size={18}
-                            color={ACCENT_COLOR}
-                        />
-                    </Pressable>
                 </View>
             </View>
             {bibleOpen ? (
@@ -702,7 +699,9 @@ export default function JournalEditor(props: EditorProps) {
                         styles.passageCard,
                         {
                             backgroundColor: inputBackground,
-                            borderColor: inputBorder,
+                        
+                            borderColor: "red",
+                            borderWidth: 1,
                         },
                     ]}
                 >
@@ -729,85 +728,131 @@ export default function JournalEditor(props: EditorProps) {
                 </View>
             ) : null}
 
-            <TextInput
-                style={[
-                    styles.tags,
-                    {
-                        backgroundColor: inputBackground,
-                        borderColor: inputBorder,
-                        color: colors.text,
-                    },
-                ]}
-                placeholder="Tags (comma-separated)"
-                placeholderTextColor={mutedText}
-                value={tagsText}
-                onChangeText={onChangeTags}
-                autoCapitalize="none"
-            />
+            <View style={styles.field}>
+                <Text style={[styles.fieldLabel, { color: colors.text }]}>
+                    Title
+                </Text>
+                <TextInput
+                    style={[
+                        styles.input,
+                        {
+                            backgroundColor: inputBackground,
+                            borderColor: inputBorder,
+                            color: colors.text,
+                        },
+                    ]}
+                    placeholder="What is the title?"
+                    placeholderTextColor={mutedText}
+                    value={title}
+                    onChangeText={onChangeTitle}
+                />
+            </View>
 
-            <TextInput
-                style={[
-                    styles.textarea,
-                    {
-                        backgroundColor: inputBackground,
-                        borderColor: inputBorder,
-                        color: colors.text,
-                    },
-                ]}
-                placeholder="Question"
-                placeholderTextColor={mutedText}
-                value={content.question}
-                onChangeText={v => onChangeField("question", v)}
-                multiline
-            />
+            <View style={styles.field}>
+                <Text style={[styles.fieldLabel, { color: colors.text }]}>
+                    Tags
+                </Text>
+                <TextInput
+                    style={[
+                        styles.input,
+                        {
+                            backgroundColor: inputBackground,
+                            borderColor: inputBorder,
+                            color: colors.text,
+                        },
+                    ]}
+                    placeholder="Tags (comma-separated)"
+                    placeholderTextColor={mutedText}
+                    value={tagsText}
+                    onChangeText={onChangeTags}
+                    autoCapitalize="none"
+                />
+            </View>
 
-            <TextInput
-                style={[
-                    styles.textarea,
-                    {
-                        backgroundColor: inputBackground,
-                        borderColor: inputBorder,
-                        color: colors.text,
-                    },
-                ]}
-                placeholder="Observation"
-                placeholderTextColor={mutedText}
-                value={content.observation}
-                onChangeText={v => onChangeField("observation", v)}
-                multiline
-            />
+            <View style={styles.field}>
+                <Text style={[styles.fieldLabel, { color: colors.text }]}>
+                    Question
+                </Text>
+                <TextInput
+                    style={[
+                        styles.input,
+                        styles.questionInput,
+                        {
+                            backgroundColor: inputBackground,
+                            borderColor: inputBorder,
+                            color: colors.text,
+                        },
+                    ]}
+                    placeholder="Question"
+                    placeholderTextColor={mutedText}
+                    value={content.question}
+                    onChangeText={v => onChangeField("question", v)}
+                    multiline
+                />
+            </View>
 
-            <TextInput
-                style={[
-                    styles.textarea,
-                    {
-                        backgroundColor: inputBackground,
-                        borderColor: inputBorder,
-                        color: colors.text,
-                    },
-                ]}
-                placeholder="Application"
-                placeholderTextColor={mutedText}
-                value={content.application}
-                onChangeText={v => onChangeField("application", v)}
-                multiline
-            />
+            <View style={styles.field}>
+                <Text style={[styles.fieldLabel, { color: colors.text }]}>
+                    Observation
+                </Text>
+                <TextInput
+                    style={[
+                        styles.textarea,
+                        {
+                            backgroundColor: inputBackground,
+                            borderColor: inputBorder,
+                            color: colors.text,
+                        },
+                    ]}
+                    placeholder="What are your observations?"
+                    placeholderTextColor={mutedText}
+                    value={content.observation}
+                    onChangeText={v => onChangeField("observation", v)}
+                    multiline
+                />
+            </View>
 
-            <TextInput
-                style={[
-                    styles.textarea,
-                    {
-                        backgroundColor: inputBackground,
-                        borderColor: inputBorder,
-                        color: colors.text,
-                    },
-                ]}
-                placeholder="Prayer"
-                placeholderTextColor={mutedText}
-                value={content.prayer}
-                onChangeText={v => onChangeField("prayer", v)}
-                multiline
-            />
+            <View style={styles.field}>
+                <Text style={[styles.fieldLabel, { color: colors.text }]}>
+                    Application
+                </Text>
+                <TextInput
+                    style={[
+                        styles.textarea,
+                        {
+                            backgroundColor: inputBackground,
+                            borderColor: inputBorder,
+                            color: colors.text,
+                        },
+                    ]}
+                    placeholder="How will you apply this?"
+                    placeholderTextColor={mutedText}
+                    value={content.application}
+                    onChangeText={v => onChangeField("application", v)}
+                    multiline
+                />
+            </View>
+
+            <View style={styles.field}>
+                <Text style={[styles.fieldLabel, { color: colors.text }]}>
+                    Prayer
+                </Text>
+                <TextInput
+                    style={[
+                        styles.textarea,
+                        {
+                            backgroundColor: inputBackground,
+                            borderColor: inputBorder,
+                            color: colors.text,
+                        },
+                    ]}
+                    placeholder="Write your prayer..."
+                    placeholderTextColor={mutedText}
+                    value={content.prayer}
+                    onChangeText={v => onChangeField("prayer", v)}
+                    multiline
+                />
+            </View>
             {props.mode === "create" ? (
                 <Pressable
                     style={[
@@ -1047,17 +1092,25 @@ const styles = StyleSheet.create({
     container: { padding: 16 },
     statusText: { fontSize: 12, fontWeight: "600" },
     statusSubtext: { fontSize: 11, marginTop: 2 },
-    title: {
-        fontSize: 18,
-        fontWeight: "600",
-        borderBottomWidth: 1,
-        marginBottom: 16,
-        padding: 8,
+    field: { marginBottom: 18 },
+    fieldLabel: { fontSize: 16, fontWeight: "600", marginBottom: 8 },
+    input: {
+        borderWidth: 1,
+        borderRadius: 10,
+        paddingHorizontal: 14,
+        paddingVertical: 12,
+        fontSize: 15,
+    },
+    questionInput: {
+        minHeight: 46,
+        textAlignVertical: "top",
     },
     scriptureRef: {
-        paddingVertical: 6,
+        paddingVertical: 0,
         paddingHorizontal: 8,
         marginRight: 6,
+        minHeight: 44,
+        textAlignVertical: "center",
     },
     scriptureRow: {
         flexDirection: "row",
@@ -1067,7 +1120,14 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderRadius: 10,
         paddingHorizontal: 8,
-        paddingVertical: 6,
+        paddingVertical: 0,
+        minHeight: 46,
+        flex: 1,
+    },
+    scriptureInlineRow: {
+        flexDirection: "row",
+        alignItems: "flex-start",
+        gap: 8,
     },
     scriptureActions: {
         flexDirection: "row",
@@ -1077,11 +1137,14 @@ const styles = StyleSheet.create({
     brpInline: {
         flexDirection: "row",
         alignItems: "center",
-        gap: 6,
-        paddingHorizontal: 10,
-        paddingVertical: 6,
+        justifyContent: "center",
+        borderWidth: 1,
         borderRadius: 8,
+        paddingHorizontal: 12,
+        gap: 6,
+        height: 46,
         backgroundColor: ACCENT_COLOR,
+        borderColor: ACCENT_COLOR,
     },
     brpInlineText: { color: "#fff", fontWeight: "600", fontSize: 12 },
     bibleButton: {
@@ -1110,12 +1173,6 @@ const styles = StyleSheet.create({
     },
     passageLine: { fontSize: 14, lineHeight: 20 },
     passageEmpty: { fontSize: 13 },
-    tags: {
-        borderWidth: 1,
-        borderRadius: 8,
-        padding: 10,
-        marginBottom: 12,
-    },
     saveButton: {
         backgroundColor: ACCENT_COLOR,
         paddingVertical: 12,
@@ -1128,7 +1185,6 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderRadius: 8,
         padding: 12,
-        marginBottom: 12,
         minHeight: 100,
         textAlignVertical: "top",
     },
