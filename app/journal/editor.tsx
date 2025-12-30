@@ -23,6 +23,7 @@ import { ACCENT_COLOR } from "../../src/theme";
 import { useTheme } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
+import { Asset } from "expo-asset";
 
 type EditorProps =
     | { mode: "create"; initialScriptureRef?: string; fromBrp?: boolean }
@@ -38,6 +39,157 @@ type JournalVersion = {
         content?: JournalEntry["content"];
         tags?: string[];
     };
+};
+
+type VerseItem = {
+    book_name: string;
+    chapter: number;
+    verse: number;
+    text: string;
+};
+
+type BibleTranslation = {
+    verses: VerseItem[];
+};
+
+type TranslationKey = "ASV" | "KJV" | "Tagalog";
+
+const TRANSLATION_ORDER: TranslationKey[] = ["ASV", "KJV", "Tagalog"];
+
+const TRANSLATION_ASSETS: Record<TranslationKey, number> = {
+    ASV: require("../../assets/bible/asv.txt"),
+    KJV: require("../../assets/bible/kjv.txt"),
+    Tagalog: require("../../assets/bible/tagalog.txt"),
+};
+
+const TRANSLATION_CACHE = new Map<TranslationKey, BibleTranslation>();
+const TRANSLATION_PROMISES = new Map<TranslationKey, Promise<BibleTranslation>>();
+
+const loadTranslation = async (key: TranslationKey) => {
+    const cached = TRANSLATION_CACHE.get(key);
+    if (cached) return cached;
+    const pending = TRANSLATION_PROMISES.get(key);
+    if (pending) return pending;
+
+    const asset = Asset.fromModule(TRANSLATION_ASSETS[key]);
+    const promise = (async () => {
+        if (!asset.localUri) {
+            await asset.downloadAsync();
+        }
+        const uri = asset.localUri ?? asset.uri;
+        const response = await fetch(uri);
+        const content = await response.text();
+        const data = JSON.parse(content) as BibleTranslation;
+        TRANSLATION_CACHE.set(key, data);
+        TRANSLATION_PROMISES.delete(key);
+        return data;
+    })();
+
+    TRANSLATION_PROMISES.set(key, promise);
+    return promise;
+};
+
+const TRANSLATION_INDEX_CACHE = new WeakMap<
+    BibleTranslation,
+    Map<string, Map<number, VerseItem[]>>
+>();
+
+const getTranslationIndex = (translation: BibleTranslation) => {
+    const cached = TRANSLATION_INDEX_CACHE.get(translation);
+    if (cached) return cached;
+
+    const bookMap = new Map<string, Map<number, VerseItem[]>>();
+    translation.verses.forEach((item) => {
+        const bookName = item.book_name;
+        let chapters = bookMap.get(bookName);
+        if (!chapters) {
+            chapters = new Map<number, VerseItem[]>();
+            bookMap.set(bookName, chapters);
+        }
+        let verses = chapters.get(item.chapter);
+        if (!verses) {
+            verses = [];
+            chapters.set(item.chapter, verses);
+        }
+        verses.push(item);
+    });
+
+    TRANSLATION_INDEX_CACHE.set(translation, bookMap);
+    return bookMap;
+};
+
+const normalizeBookName = (book: string) => {
+    if (book === "Psalm") return "Psalms";
+    return book;
+};
+
+const parseBookAndChapter = (value: string) => {
+    const cleaned = value.trim().replace(/\s+/g, " ");
+    const match = cleaned.match(/^(.*?)(\d+)$/);
+    if (!match) return null;
+    const book = match[1].trim();
+    const chapter = Number.parseInt(match[2], 10);
+    if (!book || Number.isNaN(chapter)) return null;
+    return { book, chapter };
+};
+
+const getPassageLines = (scripture: string, translation: BibleTranslation) => {
+    const trimmed = scripture.trim();
+    if (!trimmed) return [];
+
+    const parts = trimmed.split(":");
+    const leftPart = parts[0]?.trim() ?? "";
+    const rightPart = parts[1]?.trim();
+    const parsed = parseBookAndChapter(leftPart);
+    if (!parsed) return [];
+
+    let startVerse: number | undefined;
+    let endVerse: number | undefined;
+    if (rightPart) {
+        const rangeParts = rightPart
+            .split(/[-–]/)
+            .map((part) => part.trim())
+            .filter(Boolean);
+        if (rangeParts[0]) {
+            const start = Number.parseInt(rangeParts[0], 10);
+            if (!Number.isNaN(start)) {
+                startVerse = start;
+            }
+        }
+        if (rangeParts[1]) {
+            const end = Number.parseInt(rangeParts[1], 10);
+            if (!Number.isNaN(end)) {
+                endVerse = end;
+            }
+        }
+    }
+
+    const normalizedBook = normalizeBookName(parsed.book);
+    const index = getTranslationIndex(translation);
+    const chapterMap = index.get(normalizedBook);
+    const verses = chapterMap?.get(parsed.chapter);
+    if (!verses?.length) return [];
+
+    const cleanText = (text: string) =>
+        text
+            .replace(/\u00b6/g, "")
+            .replace(/\[|\]/g, "")
+            .replace(/[<>]/g, "")
+            .replace(/\s+/g, " ")
+            .trim();
+
+    if (startVerse == null) {
+        return verses.map((item) => `${item.verse} ${cleanText(item.text)}`);
+    }
+
+    if (endVerse != null && endVerse >= startVerse) {
+        return verses
+            .filter((item) => item.verse >= startVerse && item.verse <= endVerse)
+            .map((item) => `${item.verse} ${cleanText(item.text)}`);
+    }
+
+    const exact = verses.find((item) => item.verse === startVerse);
+    return exact ? [`${exact.verse} ${cleanText(exact.text)}`] : [];
 };
 
 export default function JournalEditor(props: EditorProps) {
@@ -84,6 +236,13 @@ export default function JournalEditor(props: EditorProps) {
     const [refreshing, setRefreshing] = useState(false);
     const [createSaving, setCreateSaving] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
+    const [bibleOpen, setBibleOpen] = useState(false);
+    const [translationKey, setTranslationKey] =
+        useState<TranslationKey>("ASV");
+    const [translationData, setTranslationData] =
+        useState<BibleTranslation | null>(null);
+    const [bibleLoading, setBibleLoading] = useState(false);
+    const [bibleError, setBibleError] = useState<string | null>(null);
     const subtleText = isDark ? "#b9c0cf" : "#555";
     const mutedText = isDark ? "#8e95a6" : "#777";
     const inputBackground = isDark ? "#1a1f2b" : "#fff";
@@ -92,6 +251,36 @@ export default function JournalEditor(props: EditorProps) {
     const modalBackground = isDark ? "#151a24" : "#fff";
     const dividerColor = isDark ? "#2a3142" : "#eee";
     const disabledAction = isDark ? "#2a3d6b" : "#9db5ee";
+
+    useEffect(() => {
+        let cancelled = false;
+        if (!bibleOpen) return;
+        setBibleLoading(true);
+        setBibleError(null);
+        setTranslationData(null);
+        loadTranslation(translationKey)
+            .then((data) => {
+                if (cancelled) return;
+                setTranslationData(data);
+            })
+            .catch((err: any) => {
+                if (cancelled) return;
+                setBibleError(err?.message ?? "Failed to load translation.");
+            })
+            .finally(() => {
+                if (cancelled) return;
+                setBibleLoading(false);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [bibleOpen, translationKey]);
+
+    const passageLines = useMemo(() => {
+        if (!bibleOpen || !translationData) return [];
+        return getPassageLines(scriptureRef, translationData);
+    }, [bibleOpen, scriptureRef, translationData]);
 
     useEffect(() => {
         if (props.mode !== "edit") return;
@@ -322,6 +511,17 @@ export default function JournalEditor(props: EditorProps) {
         });
     };
 
+    const toggleBible = () => {
+        setBibleOpen((prev) => !prev);
+    };
+
+    const cycleTranslation = () => {
+        setTranslationKey((prev) => {
+            const index = TRANSLATION_ORDER.indexOf(prev);
+            return TRANSLATION_ORDER[(index + 1) % TRANSLATION_ORDER.length];
+        });
+    };
+
     const buildShareText = () => {
         const parts: string[] = [];
         const cleanTitle = title.trim();
@@ -438,16 +638,18 @@ export default function JournalEditor(props: EditorProps) {
                 onChangeText={onChangeTitle}
             />
 
-            <View style={styles.scriptureRow}>
+            <View
+                style={[
+                    styles.scriptureRow,
+                    { backgroundColor: inputBackground, borderColor: inputBorder },
+                ]}
+            >
                 <TextInput
                     style={[
                         styles.scriptureRef,
                         {
-                            backgroundColor: inputBackground,
-                            borderColor: inputBorder,
                             color: colors.text,
                             flex: 1,
-                            marginBottom: 0,
                         },
                     ]}
                     placeholder="Scripture reference"
@@ -456,18 +658,76 @@ export default function JournalEditor(props: EditorProps) {
                     onChangeText={onChangeScriptureRef}
                 />
 
-                {props.mode === "create" && !props.fromBrp ? (
+                <View style={styles.scriptureActions}>
+                    {props.mode === "create" && !props.fromBrp ? (
+                        <Pressable
+                            style={styles.brpInline}
+                            onPress={handlePickFromBrp}
+                            accessibilityRole="button"
+                            accessibilityLabel="Pick from BRP"
+                        >
+                            <Ionicons name="book-outline" size={16} color="#fff" />
+                            <Text style={styles.brpInlineText}>BRP</Text>
+                        </Pressable>
+                    ) : null}
+                    {bibleOpen ? (
+                        <Pressable
+                            style={styles.translationButton}
+                            onPress={cycleTranslation}
+                            accessibilityRole="button"
+                            accessibilityLabel="Change translation"
+                        >
+                            <Text style={styles.translationButtonText}>
+                                {translationKey}
+                            </Text>
+                        </Pressable>
+                    ) : null}
                     <Pressable
-                        style={styles.brpInline}
-                        onPress={handlePickFromBrp}
+                        style={styles.bibleButton}
+                        onPress={toggleBible}
                         accessibilityRole="button"
-                        accessibilityLabel="Pick from BRP"
+                        accessibilityLabel="Toggle Bible"
                     >
-                        <Ionicons name="book-outline" size={16} color="#fff" />
-                        <Text style={styles.brpInlineText}>BRP</Text>
+                        <Ionicons
+                            name={bibleOpen ? "chevron-up" : "chevron-down"}
+                            size={18}
+                            color={ACCENT_COLOR}
+                        />
                     </Pressable>
-                ) : null}
+                </View>
             </View>
+            {bibleOpen ? (
+                <View
+                    style={[
+                        styles.passageCard,
+                        {
+                            backgroundColor: inputBackground,
+                            borderColor: inputBorder,
+                        },
+                    ]}
+                >
+                    {bibleLoading ? (
+                        <ActivityIndicator size="small" color={ACCENT_COLOR} />
+                    ) : bibleError ? (
+                        <Text style={[styles.passageEmpty, { color: mutedText }]}>
+                            {bibleError}
+                        </Text>
+                    ) : passageLines.length ? (
+                        passageLines.map((line, index) => (
+                            <Text
+                                key={`${line}-${index}`}
+                                style={[styles.passageLine, { color: colors.text }]}
+                            >
+                                {line}
+                            </Text>
+                        ))
+                    ) : (
+                        <Text style={[styles.passageEmpty, { color: mutedText }]}>
+                            No verse found.
+                        </Text>
+                    )}
+                </View>
+            ) : null}
 
             <TextInput
                 style={[
@@ -795,16 +1055,24 @@ const styles = StyleSheet.create({
         padding: 8,
     },
     scriptureRef: {
-        borderWidth: 1,
-        borderRadius: 8,
-        padding: 10,
-        marginBottom: 12,
+        paddingVertical: 6,
+        paddingHorizontal: 8,
+        marginRight: 6,
     },
     scriptureRow: {
         flexDirection: "row",
         alignItems: "center",
         gap: 8,
         marginBottom: 12,
+        borderWidth: 1,
+        borderRadius: 10,
+        paddingHorizontal: 8,
+        paddingVertical: 6,
+    },
+    scriptureActions: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
     },
     brpInline: {
         flexDirection: "row",
@@ -816,6 +1084,32 @@ const styles = StyleSheet.create({
         backgroundColor: ACCENT_COLOR,
     },
     brpInlineText: { color: "#fff", fontWeight: "600", fontSize: 12 },
+    bibleButton: {
+        paddingHorizontal: 6,
+        paddingVertical: 6,
+        borderRadius: 8,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    translationButton: {
+        paddingHorizontal: 6,
+        paddingVertical: 6,
+        borderRadius: 8,
+    },
+    translationButtonText: {
+        color: ACCENT_COLOR,
+        fontWeight: "700",
+        fontSize: 12,
+    },
+    passageCard: {
+        borderWidth: 1,
+        borderRadius: 10,
+        padding: 12,
+        marginBottom: 12,
+        gap: 10,
+    },
+    passageLine: { fontSize: 14, lineHeight: 20 },
+    passageEmpty: { fontSize: 13 },
     tags: {
         borderWidth: 1,
         borderRadius: 8,

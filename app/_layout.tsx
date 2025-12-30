@@ -15,6 +15,8 @@ import { useReminderStore } from "../src/store/reminderStore";
 import * as Notifications from "expo-notifications";
 import {
   getCrashlytics,
+  log as logCrash,
+  setUserId,
   setCrashlyticsCollectionEnabled,
 } from "@react-native-firebase/crashlytics";
 import {
@@ -98,6 +100,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     const exchangeBackendToken = async (firebaseUser: User) => {
+      logCrash(getCrashlytics(), "Auth: exchange backend token");
       const idToken = await firebaseUser.getIdToken(true);
       const data = await apiPost(
         "/auth",
@@ -116,6 +119,12 @@ export default function RootLayout() {
       logDebug("FIREBASE AUTH STATE:", user ? "LOGGED IN" : "LOGGED OUT");
       setFirebaseReadyStore(true);
       setUser(user);
+      if (user?.uid) {
+        setUserId(getCrashlytics(), user.uid);
+        logCrash(getCrashlytics(), "Auth: user signed in");
+      } else {
+        logCrash(getCrashlytics(), "Auth: user signed out");
+      }
 
       if (!user) {
         resetStore();
@@ -132,6 +141,7 @@ export default function RootLayout() {
       );
       if (isPasswordUser && !user.emailVerified) {
         setBackendReady(false);
+        logCrash(getCrashlytics(), "Auth: email not verified");
         if (!isVerifyScreen) {
           router.replace("/(auth)/verify-email");
         }
@@ -154,6 +164,7 @@ export default function RootLayout() {
           token = await exchangeBackendToken(user);
         } catch (err) {
           logDebug("Backend token exchange failed:", err);
+          logCrash(getCrashlytics(), "Auth: backend token exchange failed");
         }
         if (!token) {
           resetStore();
@@ -167,6 +178,7 @@ export default function RootLayout() {
       try {
         const me = await apiGet("/me", true, OFFLINE_TIMEOUT_MS);
         logDebug("SESSION RESTORED, ME:", me);
+        logCrash(getCrashlytics(), "Auth: session restored");
 
         await useStreakStore.getState().bootstrapFromServer(me);
         setBackendReady(true);
@@ -174,6 +186,7 @@ export default function RootLayout() {
           await useJournalStore.getState().syncJournals();
         } catch (syncErr) {
           logDebug("Initial sync failed:", syncErr);
+          logCrash(getCrashlytics(), "Sync: initial sync failed");
         }
         if (inAuthGroup || isRoot) {
           router.replace("/(tabs)");
@@ -182,6 +195,7 @@ export default function RootLayout() {
         const status = (err as any)?.status;
         if (status === 401 || status === 403) {
           logDebug("Backend session invalid -> retry /auth");
+          logCrash(getCrashlytics(), "Auth: backend session invalid");
           try {
             await exchangeBackendToken(user);
             const me = await apiGet("/me", true, OFFLINE_TIMEOUT_MS);
@@ -191,12 +205,14 @@ export default function RootLayout() {
               await useJournalStore.getState().syncJournals();
             } catch (syncErr) {
               logDebug("Initial sync failed:", syncErr);
+              logCrash(getCrashlytics(), "Sync: initial sync failed");
             }
             if (inAuthGroup || isRoot) {
               router.replace("/(tabs)");
             }
           } catch (retryErr) {
             logDebug("Backend session restore failed:", retryErr);
+            logCrash(getCrashlytics(), "Auth: backend restore failed");
             resetStore();
             resetAuth();
             await deleteSecureItem("backendToken");
@@ -206,6 +222,7 @@ export default function RootLayout() {
           }
         } else {
           logDebug("Backend unreachable, entering offline mode");
+          logCrash(getCrashlytics(), "Network: backend unreachable");
           setBackendReady(false);
           if (inAuthGroup || isRoot) {
             router.replace("/(tabs)");
