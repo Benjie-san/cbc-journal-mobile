@@ -6,7 +6,10 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://cbc-journal-backend.onrender.com"
+      }
     },
     "preview": {
         "android": {
@@ -18,7 +21,10 @@
       "distribution": "internal"
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://cbc-journal-backend.onrender.com"
+      }
     }
   },
   "submit": {

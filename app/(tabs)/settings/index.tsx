@@ -17,6 +17,7 @@ import { clearLocalJournals } from "../../../src/db/localDb";
 import { useEffect, useState } from "react";
 import { deleteSecureItem } from "../../../src/storage/secureStorage";
 import { apiPost } from "../../../src/api/client";
+import { logDebug } from "../../../src/utils/logger";
 
 export default function Settings() {
   const resetStore = useJournalStore((state) => state.reset);
@@ -53,7 +54,7 @@ export default function Settings() {
     try {
       await apiPost("/auth/revoke", {}, true, 6000);
     } catch (err) {
-      console.log("Revoke sessions failed:", err);
+      logDebug("Revoke sessions failed:", err);
     }
   };
 

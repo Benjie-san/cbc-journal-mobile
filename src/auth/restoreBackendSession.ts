@@ -1,4 +1,5 @@
 import { deleteSecureItem, getSecureItem } from "../storage/secureStorage";
+import { logDebug } from "../utils/logger";
 
 /**
  * Restores backend session if token exists
@@ -27,5 +28,5 @@ export async function restoreBackendSession() {
         throw new Error("Backend session invalid");
     }
 
-    console.log("BACKEND SESSION RESTORED");
+    logDebug("BACKEND SESSION RESTORED");
 }

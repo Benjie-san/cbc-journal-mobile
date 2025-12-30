@@ -17,6 +17,7 @@ import {
     getSecureItem,
     setSecureItem,
 } from "../storage/secureStorage";
+import { logDebug } from "../utils/logger";
 
 const PENDING_GOOGLE_TOKEN_KEY = "pendingGoogleIdToken";
 const PENDING_GOOGLE_EMAIL_KEY = "pendingGoogleEmail";
@@ -116,8 +117,7 @@ export async function signInWithGoogle() {
     
         // Save backend session token
         await setSecureItem("backendToken", data.token);
-        console.log("FIREBASE ID TOKEN:", idToken);
-        console.log("BACKEND RESPONSE TOKEN:", data.token);
+        logDebug("Google sign-in token exchange complete");
 
 
         router.replace("/(tabs)"); //lofin successful, redirects the user to the        proper section

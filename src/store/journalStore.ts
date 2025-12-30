@@ -320,6 +320,7 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
         });
     },
     syncJournals: async () => {
+        if (get().syncing) return;
         set({ syncing: true, syncError: null });
         try {
             const token = await getOrCreateBackendToken();
@@ -334,12 +335,14 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
             for (const entry of pending) {
                 const localId = entry.localId ?? entry._id;
                 const serverId = entry.serverId;
-                const payload = {
+                const basePayload = {
                     title: entry.title,
                     scriptureRef: entry.scriptureRef,
                     content: entry.content,
                     tags: entry.tags ?? [],
                 };
+                const clientId = entry.localId ?? entry._id;
+                const createPayload = { ...basePayload, clientId };
 
                 if (entry.syncStatus === "pending_create") {
                     if (entry.deleted && !serverId) {
@@ -348,7 +351,7 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
                     }
                     const created = await apiPost(
                         "/journals",
-                        payload,
+                        createPayload,
                         true,
                         SYNC_TIMEOUT_MS
                     );
@@ -377,7 +380,7 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
                     if (!serverId) {
                         const created = await apiPost(
                             "/journals",
-                            payload,
+                            createPayload,
                             true,
                             SYNC_TIMEOUT_MS
                         );
@@ -405,7 +408,7 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
                         const updated = await apiPut(
                             `/journals/${serverId}`,
                             {
-                            ...payload,
+                            ...basePayload,
                             baseVersion: entry.version,
                             },
                             true,

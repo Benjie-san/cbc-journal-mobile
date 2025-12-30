@@ -14,10 +14,15 @@ import { useStreakStore } from "../src/store/streakStore";
 import { useReminderStore } from "../src/store/reminderStore";
 import * as Notifications from "expo-notifications";
 import {
+  getCrashlytics,
+  setCrashlyticsCollectionEnabled,
+} from "@react-native-firebase/crashlytics";
+import {
   deleteSecureItem,
   getSecureItem,
   setSecureItem,
 } from "../src/storage/secureStorage";
+import { logDebug } from "../src/utils/logger";
 
 export default function RootLayout() {
   const resetStore = useJournalStore((state) => state.reset);
@@ -35,6 +40,8 @@ export default function RootLayout() {
   const OFFLINE_TIMEOUT_MS = 6000;
 
   useEffect(() => {
+    const crash = getCrashlytics();
+    setCrashlyticsCollectionEnabled(crash, !__DEV__);
     Notifications.setNotificationHandler({
       handleNotification: async () => ({
         shouldShowBanner: true,
@@ -106,7 +113,7 @@ export default function RootLayout() {
 
     // 1. Wait for Firebase to initialize
     const unsub = onAuthStateChanged(auth, async (user) => {
-      console.log("FIREBASE AUTH STATE:", user ? "LOGGED IN" : "LOGGED OUT");
+      logDebug("FIREBASE AUTH STATE:", user ? "LOGGED IN" : "LOGGED OUT");
       setFirebaseReadyStore(true);
       setUser(user);
 
@@ -134,19 +141,19 @@ export default function RootLayout() {
       try {
         await useJournalStore.getState().loadJournals();
       } catch (err) {
-        console.log("Failed to load journals on login:", err);
+        logDebug("Failed to load journals on login:", err);
       }
 
       // 2. Check backend token
       let token = await getSecureItem("backendToken");
-      console.log("LOADED backendToken:", token);
+      logDebug("LOADED backendToken:", token ? "present" : "missing");
 
       if (!token) {
-        console.log("No backend token -> exchanging with /auth");
+        logDebug("No backend token -> exchanging with /auth");
         try {
           token = await exchangeBackendToken(user);
         } catch (err) {
-          console.log("Backend token exchange failed:", err);
+          logDebug("Backend token exchange failed:", err);
         }
         if (!token) {
           resetStore();
@@ -159,14 +166,14 @@ export default function RootLayout() {
       // 3. Validate backend session with /me
       try {
         const me = await apiGet("/me", true, OFFLINE_TIMEOUT_MS);
-        console.log("SESSION RESTORED, ME:", me);
+        logDebug("SESSION RESTORED, ME:", me);
 
         await useStreakStore.getState().bootstrapFromServer(me);
         setBackendReady(true);
         try {
           await useJournalStore.getState().syncJournals();
         } catch (syncErr) {
-          console.log("Initial sync failed:", syncErr);
+          logDebug("Initial sync failed:", syncErr);
         }
         if (inAuthGroup || isRoot) {
           router.replace("/(tabs)");
@@ -174,7 +181,7 @@ export default function RootLayout() {
       } catch (err) {
         const status = (err as any)?.status;
         if (status === 401 || status === 403) {
-          console.log("Backend session invalid -> retry /auth");
+          logDebug("Backend session invalid -> retry /auth");
           try {
             await exchangeBackendToken(user);
             const me = await apiGet("/me", true, OFFLINE_TIMEOUT_MS);
@@ -183,13 +190,13 @@ export default function RootLayout() {
             try {
               await useJournalStore.getState().syncJournals();
             } catch (syncErr) {
-              console.log("Initial sync failed:", syncErr);
+              logDebug("Initial sync failed:", syncErr);
             }
             if (inAuthGroup || isRoot) {
               router.replace("/(tabs)");
             }
           } catch (retryErr) {
-            console.log("Backend session restore failed:", retryErr);
+            logDebug("Backend session restore failed:", retryErr);
             resetStore();
             resetAuth();
             await deleteSecureItem("backendToken");
@@ -198,7 +205,7 @@ export default function RootLayout() {
             }
           }
         } else {
-          console.log("Backend unreachable, entering offline mode");
+          logDebug("Backend unreachable, entering offline mode");
           setBackendReady(false);
           if (inAuthGroup || isRoot) {
             router.replace("/(tabs)");
