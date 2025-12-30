@@ -251,6 +251,35 @@ export default function JournalEditor(props: EditorProps) {
     const modalBackground = isDark ? "#151a24" : "#fff";
     const dividerColor = isDark ? "#2a3142" : "#eee";
     const disabledAction = isDark ? "#2a3d6b" : "#9db5ee";
+    const isSermonNote =
+        scriptureRef.trim().toLowerCase().startsWith("sermon notes");
+
+    const labelText = {
+        title: isSermonNote ? "Theme" : "Title",
+        question: isSermonNote ? "Question" : "Question",
+        observation: isSermonNote ? "Sermon Points" : "Observation",
+        application: isSermonNote ? "Propositions" : "Application",
+        prayer: isSermonNote ? "Reflection" : "Prayer",
+    };
+
+    const placeholderText = {
+        title: isSermonNote ? "What is the theme?" : "What is the title?",
+        tags: isSermonNote
+            ? "Tags (sermon, series, speaker)"
+            : "Tags (comma-separated)",
+        question: isSermonNote
+            ? "Key question from the sermon"
+            : "Question",
+        observation: isSermonNote
+            ? "List the main sermon points"
+            : "What are your observations?",
+        application: isSermonNote
+            ? "Write the main propositions"
+            : "How will you apply this?",
+        prayer: isSermonNote
+            ? "Your reflection or prayer"
+            : "Write your prayer...",
+    };
 
     useEffect(() => {
         let cancelled = false;
@@ -646,7 +675,7 @@ export default function JournalEditor(props: EditorProps) {
                                     flex: 1,
                                 },
                             ]}
-                            placeholder="John 3:16-21"
+                        placeholder="Enter a scripture reference"
                             placeholderTextColor={mutedText}
                             value={scriptureRef}
                             onChangeText={onChangeScriptureRef}
@@ -730,7 +759,7 @@ export default function JournalEditor(props: EditorProps) {
 
             <View style={styles.field}>
                 <Text style={[styles.fieldLabel, { color: colors.text }]}>
-                    Title
+                    {labelText.title}
                 </Text>
                 <TextInput
                     style={[
@@ -741,7 +770,7 @@ export default function JournalEditor(props: EditorProps) {
                             color: colors.text,
                         },
                     ]}
-                    placeholder="What is the title?"
+                    placeholder={placeholderText.title}
                     placeholderTextColor={mutedText}
                     value={title}
                     onChangeText={onChangeTitle}
@@ -761,7 +790,7 @@ export default function JournalEditor(props: EditorProps) {
                             color: colors.text,
                         },
                     ]}
-                    placeholder="Tags (comma-separated)"
+                    placeholder={placeholderText.tags}
                     placeholderTextColor={mutedText}
                     value={tagsText}
                     onChangeText={onChangeTags}
@@ -771,7 +800,7 @@ export default function JournalEditor(props: EditorProps) {
 
             <View style={styles.field}>
                 <Text style={[styles.fieldLabel, { color: colors.text }]}>
-                    Question
+                    {labelText.question}
                 </Text>
                 <TextInput
                     style={[
@@ -783,7 +812,7 @@ export default function JournalEditor(props: EditorProps) {
                             color: colors.text,
                         },
                     ]}
-                    placeholder="Question"
+                    placeholder={placeholderText.question}
                     placeholderTextColor={mutedText}
                     value={content.question}
                     onChangeText={v => onChangeField("question", v)}
@@ -793,7 +822,7 @@ export default function JournalEditor(props: EditorProps) {
 
             <View style={styles.field}>
                 <Text style={[styles.fieldLabel, { color: colors.text }]}>
-                    Observation
+                    {labelText.observation}
                 </Text>
                 <TextInput
                     style={[
@@ -804,7 +833,7 @@ export default function JournalEditor(props: EditorProps) {
                             color: colors.text,
                         },
                     ]}
-                    placeholder="What are your observations?"
+                    placeholder={placeholderText.observation}
                     placeholderTextColor={mutedText}
                     value={content.observation}
                     onChangeText={v => onChangeField("observation", v)}
@@ -814,7 +843,7 @@ export default function JournalEditor(props: EditorProps) {
 
             <View style={styles.field}>
                 <Text style={[styles.fieldLabel, { color: colors.text }]}>
-                    Application
+                    {labelText.application}
                 </Text>
                 <TextInput
                     style={[
@@ -825,7 +854,7 @@ export default function JournalEditor(props: EditorProps) {
                             color: colors.text,
                         },
                     ]}
-                    placeholder="How will you apply this?"
+                    placeholder={placeholderText.application}
                     placeholderTextColor={mutedText}
                     value={content.application}
                     onChangeText={v => onChangeField("application", v)}
@@ -835,7 +864,7 @@ export default function JournalEditor(props: EditorProps) {
 
             <View style={styles.field}>
                 <Text style={[styles.fieldLabel, { color: colors.text }]}>
-                    Prayer
+                    {labelText.prayer}
                 </Text>
                 <TextInput
                     style={[
@@ -846,7 +875,7 @@ export default function JournalEditor(props: EditorProps) {
                             color: colors.text,
                         },
                     ]}
-                    placeholder="Write your prayer..."
+                    placeholder={placeholderText.prayer}
                     placeholderTextColor={mutedText}
                     value={content.prayer}
                     onChangeText={v => onChangeField("prayer", v)}
@@ -883,24 +912,6 @@ export default function JournalEditor(props: EditorProps) {
                         Menu
                     </Text>
                     <View style={styles.menuList}>
-                        {props.mode === "edit" ? (
-                            <Pressable
-                                style={[
-                                    styles.menuItem,
-                                    styles.menuItemDivider,
-                                    { borderBottomColor: dividerColor },
-                                ]}
-                                onPress={() => {
-                                    setMenuOpen(false);
-                                    openHistory();
-                                }}
-                            >
-                                <Ionicons name="time-outline" size={18} color={colors.text} />
-                                <Text style={[styles.menuText, { color: colors.text }]}>
-                                    View History
-                                </Text>
-                            </Pressable>
-                        ) : null}
                         <Pressable
                             style={[
                                 styles.menuItem,
@@ -934,19 +945,36 @@ export default function JournalEditor(props: EditorProps) {
                                 Copy to Clipboard
                             </Text>
                         </Pressable>
+                        {props.mode === "edit" ? (
+                            <View
+                                style={[
+                                    styles.menuItem,
+                                    { borderBottomColor: dividerColor },
+                                ]}
+                            >
+                                <Ionicons
+                                    name="cloud-outline"
+                                    size={18}
+                                    color={colors.text}
+                                />
+                                <View style={styles.menuStatus}>
+                                    <Text style={[styles.menuText, { color: colors.text }]}>
+                                        {formatStatus(existing)}
+                                    </Text>
+                                    {existing?.lastSavedAt ? (
+                                        <Text
+                                            style={[
+                                                styles.menuSubtext,
+                                                { color: mutedText },
+                                            ]}
+                                        >
+                                            {formatTime(existing.lastSavedAt)}
+                                        </Text>
+                                    ) : null}
+                                </View>
+                            </View>
+                        ) : null}
                     </View>
-                    {props.mode === "edit" ? (
-                        <View style={styles.menuMeta}>
-                            <Text style={[styles.statusText, { color: subtleText }]}>
-                                {formatStatus(existing)}
-                            </Text>
-                            {existing?.lastSavedAt ? (
-                                <Text style={[styles.statusSubtext, { color: mutedText }]}>
-                                    {formatTime(existing.lastSavedAt)}
-                                </Text>
-                            ) : null}
-                        </View>
-                    ) : null}
                     <Pressable
                         style={styles.modalClose}
                         onPress={() => setMenuOpen(false)}
@@ -1211,7 +1239,8 @@ const styles = StyleSheet.create({
     },
     menuItemDivider: { borderBottomWidth: 1 },
     menuText: { fontSize: 14, fontWeight: "600" },
-    menuMeta: { alignItems: "flex-end", marginBottom: 8 },
+    menuStatus: { flex: 1 },
+    menuSubtext: { fontSize: 12, marginTop: 2 },
     versionRow: {
         flexDirection: "row",
         justifyContent: "space-between",

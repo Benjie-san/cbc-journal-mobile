@@ -287,7 +287,20 @@ export default function BRP() {
   };
 
   useEffect(() => {
+    autoExpandRef.current = false;
+    pendingScrollMonth.current = null;
+    const now = new Date();
+    if (selectedYear === now.getFullYear()) {
+      setExpandedMonths({ [AUTO_SCROLL_MONTH]: true });
+    } else {
+      setExpandedMonths({});
+    }
+  }, [selectedYear]);
+
+  useEffect(() => {
     if (autoExpandRef.current) return;
+    const now = new Date();
+    if (selectedYear !== now.getFullYear()) return;
     if (!planByMonth[AUTO_SCROLL_MONTH]) return;
     autoExpandRef.current = true;
     setExpandedMonths((prev) => ({
@@ -469,15 +482,16 @@ const styles = StyleSheet.create({
   yearText: { fontSize: 14, fontWeight: "600" },
   yearMenu: {
     borderRadius: 12,
-    paddingVertical: 6,
     marginBottom: 12,
+    overflow: "hidden",
   },
   yearOption: {
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    minHeight: 38,
+    justifyContent: "center",
   },
   yearOptionActive: {},
-  yearOptionText: { fontSize: 14 },
+  yearOptionText: { fontSize: 14, lineHeight: 20 },
   yearOptionTextActive: { fontWeight: "600" },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   error: {

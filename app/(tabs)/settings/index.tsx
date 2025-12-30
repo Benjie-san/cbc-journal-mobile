@@ -1,5 +1,5 @@
 
-import { View, Button, Alert, Pressable, StyleSheet, Text, Switch, TextInput } from "react-native";
+import { View, Alert, Modal, Pressable, StyleSheet, Text, Switch } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -11,10 +11,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "@react-navigation/native";
 import { useThemeStore } from "../../../src/store/themeStore";
 import { ACCENT_COLOR } from "../../../src/theme";
-import { useReminderStore } from "../../../src/store/reminderStore";
 import { useStreakStore } from "../../../src/store/streakStore";
 import { clearLocalJournals } from "../../../src/db/localDb";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { deleteSecureItem } from "../../../src/storage/secureStorage";
 import { apiPost } from "../../../src/api/client";
 import { logDebug } from "../../../src/utils/logger";
@@ -23,32 +22,13 @@ export default function Settings() {
   const resetStore = useJournalStore((state) => state.reset);
   const resetAuth = useAuthStore((state) => state.reset);
   const resetStreak = useStreakStore((state) => state.reset);
-  const { colors, dark: navIsDark } = useTheme();
+  const { colors } = useTheme();
   const themeMode = useThemeStore((state) => state.theme);
   const setTheme = useThemeStore((state) => state.setTheme);
   const isDark = themeMode === "dark";
-  const reminderEnabled = useReminderStore((state) => state.enabled);
-  const reminderHour = useReminderStore((state) => state.hour);
-  const reminderMinute = useReminderStore((state) => state.minute);
-  const setReminderEnabled = useReminderStore((state) => state.setEnabled);
-  const setReminderTime = useReminderStore((state) => state.setTime);
-  const hydrateReminder = useReminderStore((state) => state.hydrate);
   const currentStreak = useStreakStore((state) => state.currentStreak);
   const longestStreak = useStreakStore((state) => state.longestStreak);
-  const [hourText, setHourText] = useState("06");
-  const [minuteText, setMinuteText] = useState("00");
-  const [isPm, setIsPm] = useState(false);
-
-  useEffect(() => {
-    hydrateReminder();
-  }, [hydrateReminder]);
-
-  useEffect(() => {
-    const hour12 = reminderHour % 12 || 12;
-    setHourText(`${hour12}`.padStart(2, "0"));
-    setMinuteText(`${reminderMinute}`.padStart(2, "0"));
-    setIsPm(reminderHour >= 12);
-  }, [reminderHour, reminderMinute]);
+  const [logoutModalOpen, setLogoutModalOpen] = useState(false);
 
   const revokeSessions = async () => {
     try {
@@ -58,9 +38,11 @@ export default function Settings() {
     }
   };
 
-  const handleLogout = async () => {
+  const handleLogout = async (revokeEverywhere: boolean) => {
     try {
-      await revokeSessions();
+      if (revokeEverywhere) {
+        await revokeSessions();
+      }
       await signOut(auth);
       await deleteSecureItem("backendToken");
       await AsyncStorage.removeItem("authToken");
@@ -73,49 +55,6 @@ export default function Settings() {
       Alert.alert("Logout failed", err?.message ?? "Unknown error");
     }
   };
-
-  const handleLogoutEverywhere = async () => {
-    Alert.alert(
-      "Log out everywhere",
-      "This will sign you out on all devices. Continue?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Log out",
-          style: "destructive",
-          onPress: handleLogout,
-        },
-      ]
-    );
-  };
-
-  const handleToggleReminder = async (value: boolean) => {
-    const ok = await setReminderEnabled(value);
-    if (!ok) {
-      Alert.alert(
-        "Notifications disabled",
-        "Enable notifications in system settings to use reminders."
-      );
-    }
-  };
-
-  const handleSaveReminderTime = async () => {
-    const hour = Number(hourText);
-    const minute = Number(minuteText);
-    if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
-      Alert.alert("Invalid time", "Use numbers for hour and minute.");
-      return;
-    }
-    if (hour < 1 || hour > 12 || minute < 0 || minute > 59) {
-      Alert.alert("Invalid time", "Hour must be 1-12 and minute 0-59.");
-      return;
-    }
-    const baseHour = hour % 12;
-    const hour24 = isPm ? baseHour + 12 : baseHour;
-    await setReminderTime(hour24, minute);
-    Alert.alert("Saved", "Reminder time updated.");
-  };
-
 
   return (
     <SafeAreaView
@@ -143,88 +82,6 @@ export default function Settings() {
               {longestStreak}
             </Text>
           </View>
-        </View>
-      </View>
-      <View style={[styles.card, { backgroundColor: colors.card }]}>
-        <View style={styles.row}>
-          <View style={styles.rowLeft}>
-            <Ionicons name="notifications-outline" size={20} color={colors.text} />
-            <Text style={[styles.rowText, { color: colors.text }]}>Daily reminder</Text>
-          </View>
-          <Switch
-            value={reminderEnabled}
-            onValueChange={handleToggleReminder}
-            trackColor={{ false: "#cfcfcf", true: ACCENT_COLOR }}
-            thumbColor="#ffffff"
-          />
-        </View>
-        <View style={styles.timeRow}>
-          <Text style={[styles.timeLabel, { color: colors.text }]}>Time</Text>
-          <View style={styles.timeInputs}>
-            <TextInput
-              value={hourText}
-              onChangeText={setHourText}
-              keyboardType="number-pad"
-              maxLength={2}
-              style={[
-                styles.timeInput,
-                { borderColor: colors.border, color: colors.text },
-              ]}
-            />
-            <Text style={[styles.timeColon, { color: colors.text }]}>:</Text>
-            <TextInput
-              value={minuteText}
-              onChangeText={setMinuteText}
-              keyboardType="number-pad"
-              maxLength={2}
-              style={[
-                styles.timeInput,
-                { borderColor: colors.border, color: colors.text },
-              ]}
-            />
-            <View
-              style={[
-                styles.ampmToggle,
-                { backgroundColor: navIsDark ? "#1f2430" : "#f2f2f2" },
-              ]}
-            >
-              <Pressable
-                style={[
-                  styles.ampmButton,
-                  !isPm && styles.ampmButtonActive,
-                ]}
-                onPress={() => setIsPm(false)}
-              >
-                <Text
-                  style={[
-                    styles.ampmText,
-                    { color: !isPm ? "#fff" : colors.text },
-                  ]}
-                >
-                  AM
-                </Text>
-              </Pressable>
-              <Pressable
-                style={[
-                  styles.ampmButton,
-                  isPm && styles.ampmButtonActive,
-                ]}
-                onPress={() => setIsPm(true)}
-              >
-                <Text
-                  style={[
-                    styles.ampmText,
-                    { color: isPm ? "#fff" : colors.text },
-                  ]}
-                >
-                  PM
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-          <Pressable style={styles.saveButton} onPress={handleSaveReminderTime}>
-            <Text style={styles.saveButtonText}>Save</Text>
-          </Pressable>
         </View>
       </View>
       <View style={[styles.row, { backgroundColor: colors.card }]}>
@@ -275,11 +132,69 @@ export default function Settings() {
         </View>
         <Ionicons name="chevron-forward" size={20} color={colors.border} />
       </Pressable>
-
-      <View style={styles.logoutActions}>
-        <Button title="Log out everywhere" onPress={handleLogoutEverywhere} />
-        <Button title="Log out" onPress={handleLogout} />
-      </View>
+      <Pressable
+        style={[styles.row, { backgroundColor: colors.card }]}
+        onPress={() => setLogoutModalOpen(true)}
+      >
+        <View style={styles.rowLeft}>
+          <Ionicons name="log-out-outline" size={20} color={colors.text} />
+          <Text style={[styles.rowText, { color: colors.text }]}>Log out</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={colors.border} />
+      </Pressable>
+      <Modal
+        visible={logoutModalOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLogoutModalOpen(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, { backgroundColor: colors.card }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              Log out
+            </Text>
+            <Text style={[styles.modalBody, { color: colors.text }]}>
+              Choose how you want to sign out.
+            </Text>
+            <Pressable
+              style={[
+                styles.modalAction,
+                { borderColor: colors.border },
+              ]}
+              onPress={() => {
+                setLogoutModalOpen(false);
+                handleLogout(false);
+              }}
+            >
+              <Text style={[styles.modalActionText, { color: colors.text }]}>
+                Log out on this device
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.modalAction,
+                styles.modalActionPrimary,
+              ]}
+              onPress={() => {
+                setLogoutModalOpen(false);
+                handleLogout(true);
+              }}
+            >
+              <Text style={styles.modalActionPrimaryText}>
+                Log out everywhere
+              </Text>
+            </Pressable>
+            <Pressable
+              style={styles.modalCancel}
+              onPress={() => setLogoutModalOpen(false)}
+            >
+              <Text style={[styles.modalCancelText, { color: colors.text }]}>
+                Cancel
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -310,44 +225,34 @@ const styles = StyleSheet.create({
   },
   rowLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
   rowText: { fontSize: 16, fontWeight: "600", color: "#111" },
-  timeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 12,
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    justifyContent: "center",
+    padding: 20,
   },
-  timeLabel: { fontSize: 14, fontWeight: "600" },
-  timeInputs: { flexDirection: "row", alignItems: "center", gap: 6 },
-  timeInput: {
+  modalCard: {
+    borderRadius: 14,
+    padding: 16,
+    gap: 12,
+  },
+  modalTitle: { fontSize: 18, fontWeight: "700" },
+  modalBody: { fontSize: 14 },
+  modalAction: {
+    paddingVertical: 12,
+    borderRadius: 10,
     borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    minWidth: 48,
-    textAlign: "center",
+    alignItems: "center",
   },
-  ampmToggle: {
-    flexDirection: "row",
-    borderRadius: 999,
-    padding: 2,
-    gap: 2,
-  },
-  ampmButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
-  ampmButtonActive: {
+  modalActionText: { fontSize: 15, fontWeight: "600" },
+  modalActionPrimary: {
     backgroundColor: ACCENT_COLOR,
+    borderColor: ACCENT_COLOR,
   },
-  ampmText: { fontSize: 12, fontWeight: "600" },
-  timeColon: { fontSize: 16, fontWeight: "600" },
-  saveButton: {
-    backgroundColor: ACCENT_COLOR,
-    paddingHorizontal: 12,
+  modalActionPrimaryText: { color: "#fff", fontSize: 15, fontWeight: "600" },
+  modalCancel: {
+    alignSelf: "center",
     paddingVertical: 6,
-    borderRadius: 8,
   },
-  saveButtonText: { color: "#fff", fontWeight: "600", fontSize: 12 },
-  logoutActions: { gap: 10 },
+  modalCancelText: { fontSize: 14, fontWeight: "600" },
 });

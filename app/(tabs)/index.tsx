@@ -2,9 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Animated,
+  Easing,
   View,
   Text,
   FlatList,
+  Modal,
   Pressable,
   StyleSheet,
 } from "react-native";
@@ -75,8 +77,12 @@ export default function JournalListScreen() {
   const [statusKind, setStatusKind] = useState<"info" | "offline" | "error">(
     "info"
   );
+  const [filterModalOpen, setFilterModalOpen] = useState(false);
+  const [sortMode, setSortMode] = useState<"modified" | "created">("modified");
+  const [filterMode, setFilterMode] = useState<"all" | "week" | "month" | "year">("month");
   const statusTranslate = useRef(new Animated.Value(-20)).current;
   const statusOpacity = useRef(new Animated.Value(0)).current;
+  const statusHeight = useRef(new Animated.Value(0)).current;
   const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const statusCacheRef = useRef<string | null>(null);
   const subtleText = isDark ? "#b9c0cf" : "#555";
@@ -233,6 +239,57 @@ export default function JournalListScreen() {
     return findLatestEntry(todayPassage.verse, todayPassage);
   }, [findLatestEntry, todayPassage]);
 
+  const filteredJournals = useMemo(() => {
+    const now = new Date();
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - 7);
+
+    const getEntryDate = (entry: typeof journals[number]) => {
+      const raw =
+        sortMode === "modified"
+          ? entry.updatedAt ?? entry.lastSavedAt ?? entry.createdAt
+          : entry.createdAt ?? entry.updatedAt ?? entry.lastSavedAt;
+      const date = raw ? new Date(raw) : null;
+      if (date && !Number.isNaN(date.getTime())) {
+        return date;
+      }
+      return null;
+    };
+
+    const getFilterDate = (entry: typeof journals[number]) => {
+      const raw = entry.updatedAt ?? entry.lastSavedAt ?? entry.createdAt;
+      const date = raw ? new Date(raw) : null;
+      if (date && !Number.isNaN(date.getTime())) {
+        return date;
+      }
+      return null;
+    };
+
+    const matchesFilter = (entry: typeof journals[number]) => {
+      if (filterMode === "all") return true;
+      const date = getFilterDate(entry);
+      if (!date) return false;
+      if (filterMode === "week") {
+        return date >= weekStart;
+      }
+      if (filterMode === "month") {
+        return (
+          date.getFullYear() === now.getFullYear() &&
+          date.getMonth() === now.getMonth()
+        );
+      }
+      return date.getFullYear() === now.getFullYear();
+    };
+
+    return journals
+      .filter(matchesFilter)
+      .sort((a, b) => {
+        const dateA = getEntryDate(a)?.getTime() ?? 0;
+        const dateB = getEntryDate(b)?.getTime() ?? 0;
+        return dateB - dateA;
+      });
+  }, [filterMode, journals, sortMode]);
+
   const handleTodayOpen = () => {
     if (!todayPassage?.verse) return;
     const isSermon = normalizeRef(todayPassage.verse) === SERMON_NOTES_LABEL.toLowerCase();
@@ -293,31 +350,49 @@ export default function JournalListScreen() {
       }
       statusTranslate.setValue(-20);
       statusOpacity.setValue(0);
+      statusHeight.setValue(0);
       setStatusKind(kind);
       setStatusText(text);
+      const easing = Easing.inOut(Easing.ease);
+      Animated.timing(statusHeight, {
+        toValue: 32,
+        duration: 220,
+        easing,
+        useNativeDriver: false,
+      }).start();
       Animated.parallel([
         Animated.timing(statusTranslate, {
           toValue: 0,
           duration: 220,
+          easing,
           useNativeDriver: true,
         }),
         Animated.timing(statusOpacity, {
           toValue: 1,
           duration: 220,
+          easing,
           useNativeDriver: true,
         }),
       ]).start();
 
       statusTimerRef.current = setTimeout(() => {
+        Animated.timing(statusHeight, {
+          toValue: 0,
+          duration: 200,
+          easing,
+          useNativeDriver: false,
+        }).start();
         Animated.parallel([
           Animated.timing(statusTranslate, {
             toValue: -20,
             duration: 200,
+            easing,
             useNativeDriver: true,
           }),
           Animated.timing(statusOpacity, {
             toValue: 0,
             duration: 200,
+            easing,
             useNativeDriver: true,
           }),
         ]).start(() => {
@@ -325,7 +400,7 @@ export default function JournalListScreen() {
         });
       }, 2600);
     },
-    [statusOpacity, statusTranslate]
+    [statusHeight, statusOpacity, statusTranslate]
   );
 
   useEffect(() => {
@@ -396,7 +471,7 @@ export default function JournalListScreen() {
       style={[styles.container, { backgroundColor: listBackground }]}
     >
       <FlatList
-        data={journals}
+        data={filteredJournals}
         keyExtractor={(item) => item._id}
         contentContainerStyle={{ paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
@@ -476,30 +551,57 @@ export default function JournalListScreen() {
             </View>
             {statusText ? (
               <Animated.View
-                style={[
-                  styles.statusBanner,
-                  { backgroundColor: statusBackground },
-                  {
-                    transform: [{ translateY: statusTranslate }],
-                    opacity: statusOpacity,
-                  },
-                ]}
+                style={{
+                  height: statusHeight,
+                  marginTop: statusHeight.interpolate({
+                    inputRange: [0, 32],
+                    outputRange: [0, 6],
+                  }),
+                  overflow: "hidden",
+                }}
               >
-                <Text
+                <Animated.View
                   style={[
-                    styles.statusBannerText,
-                    { color: statusTextColor },
+                    styles.statusBanner,
+                    { backgroundColor: statusBackground },
+                    {
+                      transform: [{ translateY: statusTranslate }],
+                      opacity: statusOpacity,
+                    },
                   ]}
                 >
-                  {statusText}
-                </Text>
+                  <Text
+                    style={[
+                      styles.statusBannerText,
+                      { color: statusTextColor },
+                    ]}
+                  >
+                    {statusText}
+                  </Text>
+                </Animated.View>
               </Animated.View>
             ) : null}
+            <View style={styles.recentRow}>
+              <Text style={[styles.recentTitle, { color: colors.text }]}>
+                Recent Entries
+              </Text>
+              <Pressable
+                style={[
+                  styles.recentAction,
+                  { backgroundColor: cardBackground },
+                ]}
+                onPress={() => setFilterModalOpen(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Sort and filter"
+              >
+                <Ionicons name="options-outline" size={16} color={colors.text} />
+              </Pressable>
+            </View>
           </View>
         }
         renderItem={({ item }) => (
           <Pressable
-            style={[styles.card, { backgroundColor: cardBackground, margin: 10 }]}
+            style={[styles.card, { backgroundColor: cardBackground, margin: 6 }]}
             onPress={() => handleOpen(item._id)}
             onLongPress={() => confirmSoftDelete(item._id)}
           >
@@ -541,6 +643,96 @@ export default function JournalListScreen() {
           </Pressable>
         )}
       />
+      <Modal
+        visible={filterModalOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFilterModalOpen(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, { backgroundColor: cardBackground }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              Sort & Filter
+            </Text>
+            <Text style={[styles.modalSectionTitle, { color: colors.text }]}>
+              Sort by
+            </Text>
+            <View style={styles.modalRow}>
+              <Pressable
+                style={[
+                  styles.modalChip,
+                  sortMode === "modified" && styles.modalChipActive,
+                ]}
+                onPress={() => setSortMode("modified")}
+              >
+                <Text
+                  style={[
+                    styles.modalChipText,
+                    sortMode === "modified" && styles.modalChipTextActive,
+                  ]}
+                >
+                  Modified time
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.modalChip,
+                  sortMode === "created" && styles.modalChipActive,
+                ]}
+                onPress={() => setSortMode("created")}
+              >
+                <Text
+                  style={[
+                    styles.modalChipText,
+                    sortMode === "created" && styles.modalChipTextActive,
+                  ]}
+                >
+                  Created time
+                </Text>
+              </Pressable>
+            </View>
+            <Text style={[styles.modalSectionTitle, { color: colors.text }]}>
+              Filter
+            </Text>
+            <View style={styles.modalRow}>
+              {[
+                { key: "all", label: "All" },
+                { key: "week", label: "Week" },
+                { key: "month", label: "Month" },
+                { key: "year", label: "Year" },
+              ].map((option) => (
+                <Pressable
+                  key={option.key}
+                  style={[
+                    styles.modalChip,
+                    filterMode === option.key && styles.modalChipActive,
+                  ]}
+                  onPress={() =>
+                    setFilterMode(option.key as typeof filterMode)
+                  }
+                >
+                  <Text
+                    style={[
+                      styles.modalChipText,
+                      filterMode === option.key && styles.modalChipTextActive,
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <Pressable
+              style={styles.modalClose}
+              onPress={() => setFilterModalOpen(false)}
+            >
+              <Text style={[styles.modalCloseText, { color: colors.text }]}>
+                Close
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
 
       {/* Floating Create Button */}
       <Pressable
@@ -555,7 +747,24 @@ export default function JournalListScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, },
-  header: { marginBottom: 12, gap: 10 },
+  header: { marginBottom: 6, gap: 8 },
+  recentRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingLeft: 8,
+    paddingRight: 4,
+    marginTop: 2,
+    marginBottom: 0,
+  },
+  recentTitle: { fontSize: 18, fontWeight: "700" },
+  recentAction: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   streakRow: {
     alignItems: "flex-end",
   },
@@ -569,7 +778,9 @@ const styles = StyleSheet.create({
   },
   streakValue: { fontSize: 16, fontWeight: "700" },
   todayCard: {
-    padding: 14,
+    paddingHorizontal: 14,
+    paddingTop: 18,
+    paddingBottom: 18,
     gap: 8,
   },
   todayRow: {
@@ -611,7 +822,7 @@ const styles = StyleSheet.create({
   card: {
     padding: 16,
     borderRadius: 12,
-    marginBottom: 12,
+    marginBottom: 6,
     position: "relative",
   },
   title: { fontSize: 16, fontWeight: "600" },
@@ -644,4 +855,40 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   fabText: { color: "white", fontSize: 28, fontWeight: "600" },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    justifyContent: "center",
+    padding: 20,
+  },
+  modalCard: {
+    borderRadius: 14,
+    padding: 16,
+    gap: 12,
+  },
+  modalTitle: { fontSize: 18, fontWeight: "700" },
+  modalSectionTitle: { fontSize: 14, fontWeight: "600" },
+  modalRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  modalChip: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderColor: "#d0d0d0",
+  },
+  modalChipActive: {
+    backgroundColor: ACCENT_COLOR,
+    borderColor: ACCENT_COLOR,
+  },
+  modalChipText: { fontSize: 12, color: "#333", fontWeight: "600" },
+  modalChipTextActive: { color: "#fff" },
+  modalClose: {
+    alignSelf: "flex-end",
+    paddingVertical: 6,
+  },
+  modalCloseText: { fontSize: 14, fontWeight: "600" },
 });

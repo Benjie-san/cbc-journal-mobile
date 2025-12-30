@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 import { Stack, router, useSegments } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { Platform } from "react-native";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { auth } from "../src/firebase/config";
 import { apiGet, apiPost } from "../src/api/client";
@@ -11,8 +10,6 @@ import { ThemeProvider } from "@react-navigation/native";
 import { darkTheme, lightTheme } from "../src/theme";
 import { useThemeStore } from "../src/store/themeStore";
 import { useStreakStore } from "../src/store/streakStore";
-import { useReminderStore } from "../src/store/reminderStore";
-import * as Notifications from "expo-notifications";
 import {
   getCrashlytics,
   log as logCrash,
@@ -44,59 +41,12 @@ export default function RootLayout() {
   useEffect(() => {
     const crash = getCrashlytics();
     setCrashlyticsCollectionEnabled(crash, !__DEV__);
-    Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowBanner: true,
-        shouldShowList: true,
-        shouldPlaySound: false,
-        shouldSetBadge: false,
-      }),
-    });
-    if (Platform.OS === "android") {
-      Notifications.setNotificationChannelAsync("default", {
-        name: "Default",
-        importance: Notifications.AndroidImportance.DEFAULT,
-      }).catch(() => {});
-    }
   }, []);
 
   useEffect(() => {
     hydrateTheme();
     hydrateStreak();
   }, [hydrateTheme, hydrateStreak]);
-
-  useEffect(() => {
-    let listener: Notifications.Subscription | undefined;
-    let responseListener: Notifications.Subscription | undefined;
-
-    (async () => {
-      await useReminderStore.getState().hydrate();
-      const state = useReminderStore.getState();
-      if (state.enabled) {
-        await useReminderStore.getState().scheduleNextOccurrence();
-      }
-
-      listener = Notifications.addNotificationReceivedListener(async (event) => {
-        const data = event.request?.content?.data as any;
-        if (data?.type === "dailyReminder") {
-          await useReminderStore.getState().scheduleNextOccurrence();
-        }
-      });
-
-      responseListener =
-        Notifications.addNotificationResponseReceivedListener(async (event) => {
-          const data = event.notification?.request?.content?.data as any;
-          if (data?.type === "dailyReminder") {
-            await useReminderStore.getState().scheduleNextOccurrence();
-          }
-        });
-    })();
-
-    return () => {
-      listener?.remove();
-      responseListener?.remove();
-    };
-  }, []);
 
   useEffect(() => {
     const exchangeBackendToken = async (firebaseUser: User) => {

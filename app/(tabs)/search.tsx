@@ -230,9 +230,6 @@ export default function SearchScreen() {
                 {formatTime(item.lastSavedAt)}
               </Text>
             ) : null}
-            <Text style={[styles.preview, { color: subtleText }]}>
-              {item.content?.observation?.slice(0, 80) || ""}
-            </Text>
           </Pressable>
         )}
       />
