@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "expo-router";
+import { Link, router } from "expo-router";
 import { View, Text, StyleSheet, TextInput, Pressable, Image, Alert, Modal } from "react-native";
 import {
     sendEmailVerification,
@@ -28,6 +28,13 @@ export default function AuthIndex() {
     const inputBackground = isDark ? "#1a1f2b" : "#fff";
     const inputBorder = isDark ? "#2f3645" : "#ccc";
     const mutedText = isDark ? "#8e95a6" : "#777";
+    const termsUrl =
+        "https://docs.google.com/document/d/e/2PACX-1vS3HysRRoUx8PQHZOfmlB53dVtR3N_fgZVZyffwu7Z1xpNSTBjVa0-gAZre--ZRFinD3HW4CWw9sM3F/pub";
+    const privacyUrl =
+        "https://docs.google.com/document/d/e/2PACX-1vRofzPRbnlf0IeXpO72xloSU52A8dSqs-gBpSMSrGv5K0tYiLAyIxJF2ILN0-dBmXzfSuFkMRNiuyy2/pub";
+    const openLegal = (title: string, url: string) => {
+        router.push({ pathname: "/legal", params: { title, url } });
+    };
 
     const exchangeBackendToken = async () => {
         const user = auth.currentUser;
@@ -149,6 +156,18 @@ export default function AuthIndex() {
             onPress={signInWithGoogle}
         />
 
+        <Text style={[styles.legalText, { color: mutedText }]}>
+            By continuing, you agree to the{" "}
+            <Text style={styles.legalLink} onPress={() => openLegal("Terms of Service", termsUrl)}>
+                Terms
+            </Text>{" "}
+            and{" "}
+            <Text style={styles.legalLink} onPress={() => openLegal("Privacy Policy", privacyUrl)}>
+                Privacy Policy
+            </Text>
+            .
+        </Text>
+
         <Link href="/(auth)/signup" asChild>
             <Pressable style={styles.signUpWrap}>
                 <Text style={[styles.signUpText, { color: mutedText }]}>
@@ -232,6 +251,8 @@ const styles = StyleSheet.create({
     },
     signInText: { color: "#fff", fontWeight: "600" },
     orText: { textAlign: "center", marginBottom: 14 },
+    legalText: { textAlign: "center", fontSize: 12, marginTop: 12 },
+    legalLink: { color: ACCENT_COLOR, fontWeight: "600" },
     signUpWrap: { marginTop: 18, alignItems: "center" },
     signUpText: { fontSize: 12 },
     signUpLink: { color: "#0C3591", fontWeight: "600" },

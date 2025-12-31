@@ -1,12 +1,18 @@
 import { useState } from "react";
-import { ScrollView, StyleSheet, Text, View, Pressable } from "react-native";
+import { ScrollView, StyleSheet, Text, View, Pressable, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
+import { ACCENT_COLOR } from "../../../src/theme";
 
 export default function AboutScreen() {
   const { colors, dark: isDark } = useTheme();
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+  const termsUrl =
+    "https://docs.google.com/document/d/e/2PACX-1vS3HysRRoUx8PQHZOfmlB53dVtR3N_fgZVZyffwu7Z1xpNSTBjVa0-gAZre--ZRFinD3HW4CWw9sM3F/pub";
+  const privacyUrl =
+    "https://docs.google.com/document/d/e/2PACX-1vRofzPRbnlf0IeXpO72xloSU52A8dSqs-gBpSMSrGv5K0tYiLAyIxJF2ILN0-dBmXzfSuFkMRNiuyy2/pub";
 
   const mainDirectoryRows = [
     [
@@ -90,6 +96,25 @@ export default function AboutScreen() {
   ];
 
   const sections = [
+    {
+      id: "legal",
+      title: "Legal",
+      type: "links",
+      links: [
+        {
+          id: "terms",
+          title: "Terms of Service",
+          url: termsUrl,
+          icon: "document-text-outline",
+        },
+        {
+          id: "privacy",
+          title: "Privacy Policy",
+          url: privacyUrl,
+          icon: "shield-checkmark-outline",
+        },
+      ],
+    },
     {
       id: "discipleship",
       title: "CBC 7-Step Discipleship Process",
@@ -202,6 +227,19 @@ export default function AboutScreen() {
     row[0].toLowerCase() === "church" ||
     row[0].toLowerCase() === "account";
 
+  const isWebLink = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return false;
+    return /^https?:\/\//i.test(trimmed) || /^www\./i.test(trimmed);
+  };
+
+  const toWebUrl = (value: string) => {
+    const trimmed = value.trim();
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    if (/^www\./i.test(trimmed)) return `https://${trimmed}`;
+    return trimmed;
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -258,8 +296,14 @@ export default function AboutScreen() {
                                 colIndex === 0 && styles.tableCellFirst,
                                 colIndex === 3 && styles.tableCellLast,
                                 header && styles.tableHeaderText,
+                                isWebLink(cell) && styles.tableLink,
                                 { color: colors.text },
                               ]}
+                              onPress={
+                                isWebLink(cell)
+                                  ? () => Linking.openURL(toWebUrl(cell))
+                                  : undefined
+                              }
                             >
                               {cell}
                             </Text>
@@ -267,6 +311,33 @@ export default function AboutScreen() {
                         </View>
                       );
                     })}
+                  </View>
+                ) : section.type === "links" ? (
+                  <View style={styles.linkList}>
+                    {section.links.map((link, index) => (
+                      <Pressable
+                        key={link.id}
+                        style={[
+                          styles.linkRow,
+                          index === 0 && styles.linkRowFirst,
+                          { borderTopColor: colors.border },
+                        ]}
+                        onPress={() =>
+                          router.push({
+                            pathname: "/legal",
+                            params: { title: link.title, url: link.url },
+                          })
+                        }
+                      >
+                        <View style={styles.linkRowLeft}>
+                          <Ionicons name={link.icon} size={18} color={colors.text} />
+                          <Text style={[styles.linkRowText, { color: colors.text }]}>
+                            {link.title}
+                          </Text>
+                        </View>
+                        <Ionicons name="open-outline" size={18} color={colors.border} />
+                      </Pressable>
+                    ))}
                   </View>
                 ) : (
                   <Text style={[styles.body, { color: colors.text }]}>
@@ -293,6 +364,17 @@ const styles = StyleSheet.create({
   cardHeaderIcon: { marginLeft: 12 },
   title: { flex: 1, fontSize: 18, fontWeight: "600" },
   body: { fontSize: 14, lineHeight: 20 },
+  linkList: { gap: 0 },
+  linkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: 12,
+    borderTopWidth: 1,
+  },
+  linkRowFirst: { borderTopWidth: 0, paddingTop: 0 },
+  linkRowLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+  linkRowText: { fontSize: 15, fontWeight: "600" },
   table: { gap: 8 },
   tableGroup: { fontSize: 13, fontWeight: "700", marginTop: 6 },
   tableRow: {
@@ -312,4 +394,5 @@ const styles = StyleSheet.create({
   tableCellFirst: { flex: 1.2 },
   tableCellLast: { flex: 1.6 },
   tableHeaderText: { fontWeight: "700" },
+  tableLink: { color: ACCENT_COLOR, textDecorationLine: "underline" },
 });

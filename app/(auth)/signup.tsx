@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { View, Text, TextInput, Alert, StyleSheet, Pressable, Modal } from "react-native";
+import { View, Text, TextInput, Alert, StyleSheet, Pressable } from "react-native";
 import {
     createUserWithEmailAndPassword,
     fetchSignInMethodsForEmail,
@@ -24,12 +24,18 @@ export default function SignupScreen() {
     const [showPass, setShowPass] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
     const [acceptTerms, setAcceptTerms] = useState(false);
-    const [showTerms, setShowTerms] = useState(false);
     const inputBackground = isDark ? "#1a1f2b" : "#fff";
     const inputBorder = isDark ? "#2f3645" : "#ccc";
     const mutedText = isDark ? "#8e95a6" : "#777";
     const okColor = isDark ? "#5bd186" : "#2f9a4c";
     const warnColor = isDark ? "#f97066" : "#a33";
+    const termsUrl =
+        "https://docs.google.com/document/d/e/2PACX-1vS3HysRRoUx8PQHZOfmlB53dVtR3N_fgZVZyffwu7Z1xpNSTBjVa0-gAZre--ZRFinD3HW4CWw9sM3F/pub";
+    const privacyUrl =
+        "https://docs.google.com/document/d/e/2PACX-1vRofzPRbnlf0IeXpO72xloSU52A8dSqs-gBpSMSrGv5K0tYiLAyIxJF2ILN0-dBmXzfSuFkMRNiuyy2/pub";
+    const openLegal = (title: string, url: string) => {
+        router.push({ pathname: "/legal", params: { title, url } });
+    };
 
     const passwordChecks = useMemo(() => {
         const hasMinLength = pass.length >= 8;
@@ -159,30 +165,51 @@ export default function SignupScreen() {
             </Text>
         </View>
 
-        <Pressable
-            style={styles.termsRow}
-            onPress={() => setAcceptTerms((prev) => !prev)}
-        >
-            <View
-                style={[
-                    styles.checkbox,
-                    { borderColor: inputBorder, backgroundColor: acceptTerms ? "#0C3591" : "transparent" },
-                ]}
+        <View style={styles.termsRow}>
+            <Pressable
+                onPress={() => setAcceptTerms((prev) => !prev)}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: acceptTerms }}
             >
-                {acceptTerms ? (
-                    <Ionicons name="checkmark" size={14} color="#fff" />
-                ) : null}
-            </View>
+                <View
+                    style={[
+                        styles.checkbox,
+                        { borderColor: inputBorder, backgroundColor: acceptTerms ? "#0C3591" : "transparent" },
+                    ]}
+                >
+                    {acceptTerms ? (
+                        <Ionicons name="checkmark" size={14} color="#fff" />
+                    ) : null}
+                </View>
+            </Pressable>
             <Text style={[styles.termsText, { color: mutedText }]}>
-                I accept all{" "}
+                I agree to the{" "}
                 <Text
                     style={styles.termsLink}
-                    onPress={() => setShowTerms(true)}
+                    onPress={() => openLegal("Terms of Service", termsUrl)}
                 >
-                    Terms and Conditions
+                    Terms of Service
+                </Text>{" "}
+                and{" "}
+                <Text
+                    style={styles.termsLink}
+                    onPress={() => openLegal("Privacy Policy", privacyUrl)}
+                >
+                    Privacy Policy
                 </Text>
+                .
             </Text>
-        </Pressable>
+        </View>
+        <Text style={[styles.privacyNote, { color: mutedText }]}>
+            Philippines Data Privacy Act (RA 10173): You can request access, correction, or deletion of your data.{" "}
+            <Text
+                style={styles.termsLink}
+                onPress={() => openLegal("Privacy Policy", privacyUrl)}
+            >
+                Learn more
+            </Text>
+            .
+        </Text>
 
         <View style={{ height: 10 }} />
         
@@ -203,31 +230,6 @@ export default function SignupScreen() {
             onPress={signInWithGoogle}
         />
 
-        <Modal
-            visible={showTerms}
-            transparent
-            animationType="fade"
-            onRequestClose={() => setShowTerms(false)}
-        >
-            <View style={styles.modalBackdrop}>
-                <View style={[styles.modalCard, { backgroundColor: colors.card }]}>
-                    <Text style={[styles.modalTitle, { color: colors.text }]}>
-                        Terms and Conditions
-                    </Text>
-                    <Text style={[styles.modalBody, { color: mutedText }]}>
-                        By using this app, you agree to keep your account secure,
-                        respect community guidelines, and use the app responsibly.
-                        This is a simple placeholder for now.
-                    </Text>
-                    <Pressable
-                        style={styles.modalClose}
-                        onPress={() => setShowTerms(false)}
-                    >
-                        <Text style={styles.modalCloseText}>Close</Text>
-                    </Pressable>
-                </View>
-            </View>
-        </Modal>
         </SafeAreaView>
     );
 }
@@ -248,7 +250,7 @@ const styles = StyleSheet.create({
     passwordInput: { flex: 1, paddingVertical: 10 },
     eyeButton: { paddingLeft: 8, paddingVertical: 6 },
     rules: { marginBottom: 14, gap: 4 },
-    termsRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 16 },
+    termsRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
     checkbox: {
         width: 18,
         height: 18,
@@ -258,6 +260,7 @@ const styles = StyleSheet.create({
         justifyContent: "center",
     },
     termsText: { fontSize: 12 },
+    privacyNote: { fontSize: 11, marginBottom: 16 },
     termsLink: { color: ACCENT_COLOR, fontWeight: "600" },
     signUpButton: {
         backgroundColor: "#0C3591",
@@ -268,20 +271,4 @@ const styles = StyleSheet.create({
     signUpDisabled: { opacity: 0.5 },
     signUpText: { color: "#fff", fontWeight: "600" },
     orText: { textAlign: "center", marginVertical: 14 },
-    modalBackdrop: {
-        flex: 1,
-        backgroundColor: "rgba(0,0,0,0.35)",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 24,
-    },
-    modalCard: {
-        width: "100%",
-        borderRadius: 12,
-        padding: 16,
-    },
-    modalTitle: { fontSize: 16, fontWeight: "600", marginBottom: 8 },
-    modalBody: { fontSize: 14, lineHeight: 20, marginBottom: 12 },
-    modalClose: { alignSelf: "flex-end", paddingVertical: 6 },
-    modalCloseText: { color: ACCENT_COLOR, fontWeight: "600" },
 });

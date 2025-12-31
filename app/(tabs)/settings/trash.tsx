@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -10,6 +10,8 @@ import {
 import { useFocusEffect, useTheme } from "@react-navigation/native";
 import { useJournalStore } from "../../../src/store/journalStore";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Stack } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function TrashScreen() {
   const { colors, dark: isDark } = useTheme();
@@ -18,6 +20,12 @@ export default function TrashScreen() {
   const subtleText = isDark ? "#b9c0cf" : "#555";
   const mutedText = isDark ? "#8e95a6" : "#888";
   const cardBackground = isDark ? colors.card : "#f2f2f2";
+  const pendingBadge = isDark ? "#3a2b1f" : "#ffe9d6";
+  const pendingText = isDark ? "#f5b26b" : "#9b5c00";
+  const clearAllEnabled = useMemo(
+    () => trash.some((item) => item.syncStatus !== "pending_permanent_delete"),
+    [trash]
+  );
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
@@ -74,8 +82,49 @@ export default function TrashScreen() {
     );
   };
 
+  const handleClearAll = async () => {
+    const deletable = trash.filter(
+      (item) => item.syncStatus !== "pending_permanent_delete"
+    );
+    for (const item of deletable) {
+      await handleDelete(item._id);
+    }
+  };
+
+  const confirmClearAll = () => {
+    if (!clearAllEnabled) return;
+    Alert.alert(
+      "Delete all permanently?",
+      "This will permanently delete all items in trash.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete all", style: "destructive", onPress: handleClearAll },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <Stack.Screen
+        options={{
+          title: "Trash",
+          headerRight: () => (
+            <Pressable
+              onPress={confirmClearAll}
+              disabled={!clearAllEnabled}
+              style={({ pressed }) => [
+                styles.headerAction,
+                { opacity: !clearAllEnabled ? 0.4 : pressed ? 0.7 : 1 },
+              ]}
+            >
+              <Ionicons name="trash-outline" size={18} color={colors.text} />
+              <Text style={[styles.headerActionText, { color: colors.text }]}>
+                Clear all
+              </Text>
+            </Pressable>
+          ),
+        }}
+      />
       <FlatList
         data={trash}
         keyExtractor={(item) => item._id}
@@ -92,16 +141,30 @@ export default function TrashScreen() {
             item.content?.application ||
             item.content?.prayer ||
             "";
+          const isDeleting = item.syncStatus === "pending_permanent_delete";
 
           return (
             <Pressable
-              style={[styles.card, { backgroundColor: cardBackground }]}
-              onPress={() => confirmRestore(item._id)}
-              onLongPress={() => confirmDelete(item._id)}
+              style={[
+                styles.card,
+                { backgroundColor: cardBackground },
+                isDeleting && styles.cardPending,
+              ]}
+              onPress={isDeleting ? undefined : () => confirmRestore(item._id)}
+              onLongPress={isDeleting ? undefined : () => confirmDelete(item._id)}
             >
-              <Text style={[styles.title, { color: colors.text }]}>
-                {item.title || "Untitled Entry"}
-              </Text>
+              <View style={styles.cardHeader}>
+                <Text style={[styles.title, { color: colors.text }]}>
+                  {item.title || "Untitled Entry"}
+                </Text>
+                {isDeleting ? (
+                  <View style={[styles.badge, { backgroundColor: pendingBadge }]}>
+                    <Text style={[styles.badgeText, { color: pendingText }]}>
+                      Deleting...
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
               <Text style={[styles.preview, { color: subtleText }]}>
                 {preview ? preview.slice(0, 100) : "No content."}
               </Text>
@@ -121,7 +184,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 12,
   },
+  cardPending: { opacity: 0.75 },
+  cardHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
+  badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 },
+  badgeText: { fontSize: 11, fontWeight: "600" },
   title: { fontSize: 16, fontWeight: "600" },
   preview: { marginTop: 6 },
   empty: { textAlign: "center", marginTop: 40 },
+  headerAction: { flexDirection: "row", alignItems: "center", gap: 6 },
+  headerActionText: { fontSize: 13, fontWeight: "600" },
 });

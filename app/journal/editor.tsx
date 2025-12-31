@@ -728,8 +728,7 @@ export default function JournalEditor(props: EditorProps) {
                         styles.passageCard,
                         {
                             backgroundColor: inputBackground,
-                        
-                            borderColor: "red",
+                            borderColor: inputBorder,
                             borderWidth: 1,
                         },
                     ]}
