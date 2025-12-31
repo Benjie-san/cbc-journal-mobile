@@ -3,17 +3,17 @@ QA Matrix Checklist
 Legend: [ ] not tested  [x] pass  [!] fail
 
 Devices / OS
-- [ ] Android 12/13 (mid-range)
-- [ ] Android 14 (newer)
-- [ ] Low-end device
-- [ ] Small screen + large screen
+- [x] Android 12/13 (mid-range)
+- [x] Android 14 (newer)
+- [x] Low-end device
+- [x] Small screen + large screen
 - [x] Physical device for notifications/Crashlytics
 
 Network Conditions
-- [ ] Online stable
+- [x] Online stable
 - [x] Offline at app start
-- [ ] Drop connection mid-save
-- [ ] Flaky connection (toggle airplane mode during sync)
+- [x] Drop connection mid-save
+- [x] Flaky connection (toggle airplane mode during sync)
 
 Auth
 - [x] Email sign up -> verify email -> login
@@ -25,15 +25,14 @@ Auth
 
 Journal
 - [x] Create, edit, autosave
-- [] Soft delete -> trash -> restore
+- [x] Soft delete -> trash -> restore
 - [x] Permanent delete
-- [ ] Conflict modal (two devices)
-- [ ] Version history + hard restore
+- [x] Conflict modal (two devices)
 
 Offline-first
 - [x] Create entry offline -> reconnect -> pull to sync
 - [x] Update entry offline -> reconnect -> sync
-- [ ] No duplicate entries after sync
+- [x] No duplicate entries after sync
 
 BRP
 - [x] Year switching
