@@ -664,36 +664,15 @@ export default function JournalEditor(props: EditorProps) {
                     <View
                         style={[
                             styles.scriptureRow,
-                            { backgroundColor: inputBackground, borderColor: inputBorder },
+                            { backgroundColor: inputBackground, borderColor: inputBorder, justifyContent: 'space-between'},
                         ]}
                     >
-                        <TextInput
-                            style={[
-                                styles.scriptureRef,
-                                {
-                                    color: colors.text,
-                                    flex: 1,
-                                },
-                            ]}
-                        placeholder="Enter a scripture reference"
-                            placeholderTextColor={mutedText}
-                            value={scriptureRef}
-                            onChangeText={onChangeScriptureRef}
-                        />
+                        
+                        <View>
+                            <Text style={[ styles.scriptureRef, { color: colors.text, flex: 1,},]}>{scriptureRef}</Text>
+                        </View>
 
                         <View style={styles.scriptureActions}>
-                            {bibleOpen ? (
-                                <Pressable
-                                    style={styles.translationButton}
-                                    onPress={cycleTranslation}
-                                    accessibilityRole="button"
-                                    accessibilityLabel="Change translation"
-                                >
-                                    <Text style={styles.translationButtonText}>
-                                        {translationKey}
-                                    </Text>
-                                </Pressable>
-                            ) : null}
                             <Pressable
                                 style={styles.bibleButton}
                                 onPress={toggleBible}
@@ -740,15 +719,37 @@ export default function JournalEditor(props: EditorProps) {
                             {bibleError}
                         </Text>
                     ) : passageLines.length ? (
-                        passageLines.map((line, index) => (
-                            <Text
-                                key={`${line}-${index}`}
-                                style={[styles.passageLine, { color: colors.text }]}
-                            >
-                                {line}
-                            </Text>
-                        ))
-                    ) : (
+                        <>
+                            <View style={{justifyContent: 'space-between', flexDirection: 'row', alignItems: 'center'}}>
+                                <TextInput style={[ styles.scriptureRef, { color: colors.text, flex: 1,},]}
+                                    placeholder="Enter a scripture reference"
+                                    placeholderTextColor={mutedText}
+                                    value={scriptureRef}
+                                    onChangeText={onChangeScriptureRef}
+                                />
+                                <Pressable
+                                    style={styles.translationButton}
+                                    onPress={cycleTranslation}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Change translation"
+                                >
+                                    <Text style={styles.translationButtonText}>
+                                        {translationKey}
+                                    </Text>
+                                </Pressable>
+
+                            </View>
+                            {passageLines.map((line, index) => (
+                                
+                                <Text
+                                    key={`${line}-${index}`}
+                                    style={[styles.passageLine, { color: colors.text }]}
+                                >
+                                    {line}
+                                </Text>
+                            ))}
+                        </>) 
+                    : (
                         <Text style={[styles.passageEmpty, { color: mutedText }]}>
                             No verse found.
                         </Text>
@@ -1134,9 +1135,9 @@ const styles = StyleSheet.create({
     },
     scriptureRef: {
         paddingVertical: 0,
-        paddingHorizontal: 8,
-        marginRight: 6,
-        minHeight: 44,
+        paddingHorizontal: 2,
+        marginRight: 3,
+        minHeight: 10,
         textAlignVertical: "center",
     },
     scriptureRow: {
