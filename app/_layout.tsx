@@ -79,6 +79,7 @@ export default function RootLayout() {
 
       if (!user) {
         resetStore();
+        await useStreakStore.getState().reset();
         resetAuth();
         await deleteSecureItem("backendToken");
         if (!inAuthGroup && !isLegal) {

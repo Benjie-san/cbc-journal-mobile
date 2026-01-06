@@ -9,6 +9,7 @@ export interface JournalEntry {
     _id: string;
     title: string;
     scriptureRef?: string;
+    passageRef?: string;
     content: JournalContent;
     tags: string[];
     deleted: boolean;

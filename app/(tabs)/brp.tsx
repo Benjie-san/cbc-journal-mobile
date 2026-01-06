@@ -50,7 +50,8 @@ const AUTO_SCROLL_MONTH = MONTHS[new Date().getMonth()];
 const SCROLL_OFFSET = 12;
 const PLAN_TIMEOUT_MS = 6000;
 
-const normalizeRef = (value: string) => value.trim().toLowerCase();
+const normalizeRef = (value: string) =>
+  value.trim().replace(/[\u2013\u2014\u2212]/g, "-").toLowerCase();
 
 const buildSermonNotesRef = (year: number, month: string, date: number) =>
   `${SERMON_NOTES_LABEL} - ${month} ${date}, ${year}`;

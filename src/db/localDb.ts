@@ -6,6 +6,7 @@ type LocalJournalRow = {
   server_id: string | null;
   title: string | null;
   scripture_ref: string | null;
+  passage_ref: string | null;
   content_json: string | null;
   tags_json: string | null;
   deleted: number;
@@ -43,6 +44,7 @@ export async function initDb() {
       server_id TEXT,
       title TEXT,
       scripture_ref TEXT,
+      passage_ref TEXT,
       content_json TEXT,
       tags_json TEXT,
       deleted INTEGER DEFAULT 0,
@@ -65,6 +67,13 @@ export async function initDb() {
       UNIQUE(year, month, date)
     );
   `);
+  const columns = await db.getAllAsync<{ name: string }>(
+    "PRAGMA table_info(journals)"
+  );
+  const hasPassageRef = columns.some((col) => col.name === "passage_ref");
+  if (!hasPassageRef) {
+    await db.execAsync("ALTER TABLE journals ADD COLUMN passage_ref TEXT");
+  }
 }
 
 function mapRowToEntry(row: LocalJournalRow): JournalEntry {
@@ -80,6 +89,7 @@ function mapRowToEntry(row: LocalJournalRow): JournalEntry {
     serverId: row.server_id ?? undefined,
     title: row.title ?? "",
     scriptureRef: row.scripture_ref ?? undefined,
+    passageRef: row.passage_ref ?? undefined,
     content,
     tags,
     deleted: row.deleted === 1,
@@ -113,16 +123,18 @@ export async function upsertJournalFromServer(entry: JournalEntry) {
   );
 
   const localId = existing?.local_id ?? entry._id;
+  const passageRef = existing?.passage_ref ?? null;
 
   await db.runAsync(
     `INSERT INTO journals (
-      local_id, server_id, title, scripture_ref, content_json, tags_json,
+      local_id, server_id, title, scripture_ref, passage_ref, content_json, tags_json,
       deleted, version, sync_status, last_saved_at, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(local_id) DO UPDATE SET
       server_id=excluded.server_id,
       title=excluded.title,
       scripture_ref=excluded.scripture_ref,
+      passage_ref=excluded.passage_ref,
       content_json=excluded.content_json,
       tags_json=excluded.tags_json,
       deleted=excluded.deleted,
@@ -137,6 +149,7 @@ export async function upsertJournalFromServer(entry: JournalEntry) {
       entry._id,
       entry.title ?? "",
       entry.scriptureRef ?? null,
+      passageRef,
       contentJson,
       tagsJson,
       entry.deleted ? 1 : 0,
@@ -159,14 +172,15 @@ export async function createLocalJournal(payload: Partial<JournalEntry>) {
 
   await db.runAsync(
     `INSERT INTO journals (
-      local_id, server_id, title, scripture_ref, content_json, tags_json,
+      local_id, server_id, title, scripture_ref, passage_ref, content_json, tags_json,
       deleted, version, sync_status, last_saved_at, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       localId,
       null,
       payload.title ?? "",
       payload.scriptureRef ?? null,
+      payload.passageRef ?? null,
       contentJson,
       tagsJson,
       payload.deleted ? 1 : 0,
@@ -184,6 +198,7 @@ export async function createLocalJournal(payload: Partial<JournalEntry>) {
     serverId: undefined,
     title: payload.title ?? "",
     scriptureRef: payload.scriptureRef,
+    passageRef: payload.passageRef,
     content: (payload.content ?? {
       question: "",
       observation: "",
@@ -215,6 +230,7 @@ export async function updateLocalJournal(
     `UPDATE journals SET
       title = ?,
       scripture_ref = ?,
+      passage_ref = ?,
       content_json = ?,
       tags_json = ?,
       deleted = ?,
@@ -226,6 +242,7 @@ export async function updateLocalJournal(
     [
       payload.title ?? "",
       payload.scriptureRef ?? null,
+      payload.passageRef ?? null,
       contentJson,
       tagsJson,
       payload.deleted ? 1 : 0,
@@ -235,6 +252,18 @@ export async function updateLocalJournal(
       now,
       localId,
     ]
+  );
+}
+
+export async function updateLocalJournalPassageRef(
+  localId: string,
+  passageRef: string
+) {
+  await initDb();
+  const db = await getDb();
+  await db.runAsync(
+    "UPDATE journals SET passage_ref = ? WHERE local_id = ?",
+    [passageRef || null, localId]
   );
 }
 

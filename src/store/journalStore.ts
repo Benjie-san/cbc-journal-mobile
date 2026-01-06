@@ -9,6 +9,7 @@ import {
     getPendingLocalJournals,
     initDb,
     updateLocalJournal,
+    updateLocalJournalPassageRef,
     updateLocalJournalMeta,
     upsertJournalFromServer,
 } from "../db/localDb";
@@ -48,6 +49,7 @@ interface JournalStore {
     createJournal: (payload: Partial<JournalEntry>) => Promise<JournalEntry>;
     updateJournal: (id: string, payload: Partial<JournalEntry>) => Promise<boolean>;
     autosaveJournal: (id: string, payload: Partial<JournalEntry>, delay?:number) => void;
+    updatePassageRef: (id: string, passageRef: string) => Promise<void>;
     softDelete: (id: string) => Promise<void>;
     restore: (id: string) => Promise<void>;
     permanentDelete: (id: string) => Promise<void>;
@@ -134,6 +136,7 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
             tags: payload.tags ?? journal.tags,
             title: payload.title ?? journal.title,
             scriptureRef: payload.scriptureRef ?? journal.scriptureRef,
+            passageRef: payload.passageRef ?? journal.passageRef,
             updatedAt: new Date().toISOString(),
             lastSavedAt: new Date().toISOString(),
         };
@@ -151,6 +154,7 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
             {
                 title: next.title,
                 scriptureRef: next.scriptureRef,
+                passageRef: next.passageRef,
                 tags: next.tags,
                 content: next.content,
                 deleted: journal.deleted,
@@ -182,6 +186,17 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
         }
         }, delay);
     },
+    updatePassageRef: async (id, passageRef) => {
+        const journal = get().journals.find(j => j._id === id || j.localId === id);
+        if (!journal) return;
+        const localId = journal.localId ?? journal._id;
+        await updateLocalJournalPassageRef(localId, passageRef);
+        set({
+            journals: get().journals.map(j =>
+                j._id === journal._id ? { ...j, passageRef } : j
+            ),
+        });
+    },
 
     softDelete: async (id) => {
         const journal = get().journals.find(j =>
@@ -195,6 +210,7 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
             {
                 title: journal.title,
                 scriptureRef: journal.scriptureRef,
+                passageRef: journal.passageRef,
                 tags: journal.tags,
                 content: journal.content,
                 deleted: true,
@@ -221,6 +237,7 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
             {
                 title: journal.title,
                 scriptureRef: journal.scriptureRef,
+                passageRef: journal.passageRef,
                 tags: journal.tags,
                 content: journal.content,
                 deleted: false,
@@ -265,6 +282,7 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
             {
                 title: serverEntry.title ?? journal.title,
                 scriptureRef: serverEntry.scriptureRef ?? journal.scriptureRef,
+                passageRef: journal.passageRef,
                 tags: serverEntry.tags ?? journal.tags,
                 content: serverEntry.content ?? journal.content,
                 deleted: journal.deleted,
@@ -301,7 +319,7 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
             await upsertJournalFromServer(updated);
             set({
                 journals: get().journals.map(j =>
-                j._id === id ? updated : j
+                j._id === id ? { ...updated, passageRef: j.passageRef } : j
                 ),
                 saving: false,
                 conflict: null,
@@ -315,7 +333,7 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
         upsertJournalFromServer(entry).catch(() => {});
         set({
             journals: get().journals.map(j =>
-                j._id === entry._id ? entry : j
+                j._id === entry._id ? { ...entry, passageRef: j.passageRef } : j
             ),
         });
     },
@@ -360,6 +378,7 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
                         {
                             title: created.title,
                             scriptureRef: created.scriptureRef,
+                            passageRef: entry.passageRef,
                             tags: created.tags,
                             content: created.content,
                             deleted: created.deleted,
@@ -389,6 +408,7 @@ export const useJournalStore = create<JournalStore>((set, get) => ({
                             {
                                 title: created.title,
                                 scriptureRef: created.scriptureRef,
+                                passageRef: entry.passageRef,
                                 tags: created.tags,
                                 content: created.content,
                                 deleted: created.deleted,

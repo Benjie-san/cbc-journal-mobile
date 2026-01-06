@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiPost } from "../api/client";
+import { useAuthStore } from "./authStore";
 import type { JournalEntry } from "../types/Journal";
 
 type StreakState = {
@@ -124,12 +125,14 @@ export const useStreakStore = create<StreakState>((set, get) => ({
           lastJournalDate || currentStreak > 0 || longestStreak > 0
             ? "local"
             : "unknown";
-        set({
-          currentStreak,
-          longestStreak,
-          lastJournalDate,
-          source,
-        });
+        if (get().source !== "server") {
+          set({
+            currentStreak,
+            longestStreak,
+            lastJournalDate,
+            source,
+          });
+        }
       } catch {
         // ignore corrupt data
       }
@@ -141,14 +144,36 @@ export const useStreakStore = create<StreakState>((set, get) => ({
     if (!state.hydrated) {
       await get().hydrate();
     }
-    if (state.lastJournalDate) return;
-    const next = {
+    const serverNext = {
       currentStreak: data.currentStreak ?? 0,
       longestStreak: data.longestStreak ?? 0,
       lastJournalDate: data.lastJournalDate ?? null,
     };
-    set({ ...next, source: "server" });
+    const localDate = state.lastJournalDate;
+    const serverDate = serverNext.lastJournalDate;
+    let useLocal = false;
+    if (localDate && (!serverDate || localDate > serverDate)) {
+      useLocal = true;
+    } else if (localDate && serverDate && localDate === serverDate) {
+      if (
+        state.currentStreak > serverNext.currentStreak ||
+        state.longestStreak > serverNext.longestStreak
+      ) {
+        useLocal = true;
+      }
+    }
+    const next = useLocal
+      ? {
+          currentStreak: state.currentStreak,
+          longestStreak: state.longestStreak,
+          lastJournalDate: state.lastJournalDate,
+        }
+      : serverNext;
+    set({ ...next, source: useLocal ? "local" : "server" });
     await persist(next);
+    if (useLocal && useAuthStore.getState().backendReady) {
+      void get().syncToServer();
+    }
   },
   recordEntry: async (date) => {
     const entryDate = toLocalDateKey(date ?? new Date());
@@ -186,16 +211,32 @@ export const useStreakStore = create<StreakState>((set, get) => ({
     ) {
       return;
     }
+    if (state.source === "server") {
+      if (!entries.length) {
+        return;
+      }
+      const localDate = next.lastJournalDate;
+      const serverDate = state.lastJournalDate;
+      const localNewer = localDate && (!serverDate || localDate > serverDate);
+      const localNotWorse =
+        localDate === serverDate &&
+        next.currentStreak >= state.currentStreak &&
+        next.longestStreak >= state.longestStreak;
+      if (!localNewer && !localNotWorse) {
+        return;
+      }
+    }
     const source = entries.length ? "local" : state.source;
     set({ ...next, source });
     await persist(next);
-    if (entries.length) {
+    if (entries.length && useAuthStore.getState().backendReady) {
       void get().syncToServer();
     }
   },
   syncToServer: async () => {
     const state = get();
     if (!state.hydrated || state.source !== "local") return;
+    if (!useAuthStore.getState().backendReady) return;
     try {
       await apiPost(
         "/me/streak",

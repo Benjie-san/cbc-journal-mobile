@@ -146,8 +146,9 @@ const getPassageLines = (scripture: string, translation: BibleTranslation) => {
     let startVerse: number | undefined;
     let endVerse: number | undefined;
     if (rightPart) {
-        const rangeParts = rightPart
-            .split(/[-–]/)
+        const normalizedRight = rightPart.replace(/[\u2013\u2014\u2212]/g, "-");
+        const rangeParts = normalizedRight
+            .split("-")
             .map((part) => part.trim())
             .filter(Boolean);
         if (rangeParts[0]) {
@@ -200,6 +201,7 @@ export default function JournalEditor(props: EditorProps) {
         createJournal,
         updateJournal,
         autosaveJournal,
+        updatePassageRef,
         saving,
         conflict,
         clearConflict,
@@ -243,6 +245,15 @@ export default function JournalEditor(props: EditorProps) {
         useState<BibleTranslation | null>(null);
     const [bibleLoading, setBibleLoading] = useState(false);
     const [bibleError, setBibleError] = useState<string | null>(null);
+    const scriptureInputRef = useRef<TextInput>(null);
+    const [passageScriptureRef, setPassageScriptureRef] = useState(() => {
+        if (props.mode !== "create") return "";
+        const initial = props.initialScriptureRef ?? "";
+        if (initial.trim().toLowerCase().startsWith("sermon notes")) {
+            return "";
+        }
+        return initial;
+    });
     const subtleText = isDark ? "#b9c0cf" : "#555";
     const mutedText = isDark ? "#8e95a6" : "#777";
     const inputBackground = isDark ? "#1a1f2b" : "#fff";
@@ -253,6 +264,15 @@ export default function JournalEditor(props: EditorProps) {
     const disabledAction = isDark ? "#2a3d6b" : "#9db5ee";
     const isSermonNote =
         scriptureRef.trim().toLowerCase().startsWith("sermon notes");
+    const scripturePromptText = "Tap to add scripture";
+    const scriptureInputPlaceholder = isSermonNote
+        ? "Entry Scripture"
+        : "Enter a scripture reference";
+    const scriptureInputWidth = useMemo(() => {
+        const length = passageScriptureRef.trim().length || 8;
+        const estimated = length * 6 + 12;
+        return Math.max(100, Math.min(200, estimated));
+    }, [passageScriptureRef]);
 
     const labelText = {
         title: isSermonNote ? "Theme" : "Title",
@@ -308,8 +328,8 @@ export default function JournalEditor(props: EditorProps) {
 
     const passageLines = useMemo(() => {
         if (!bibleOpen || !translationData) return [];
-        return getPassageLines(scriptureRef, translationData);
-    }, [bibleOpen, scriptureRef, translationData]);
+        return getPassageLines(passageScriptureRef, translationData);
+    }, [bibleOpen, passageScriptureRef, translationData]);
 
     useEffect(() => {
         if (props.mode !== "edit") return;
@@ -318,6 +338,12 @@ export default function JournalEditor(props: EditorProps) {
 
         setTitle(existing.title ?? "");
         setScriptureRef(existing.scriptureRef ?? "");
+        const existingPassage =
+            existing.passageRef ??
+            (existing.scriptureRef?.trim().toLowerCase().startsWith("sermon notes")
+                ? ""
+                : existing.scriptureRef ?? "");
+        setPassageScriptureRef(existingPassage);
         setTags(existing.tags ?? []);
         setTagsText((existing.tags ?? []).join(", "));
         setContent({
@@ -382,6 +408,13 @@ export default function JournalEditor(props: EditorProps) {
                 tags,
                 content,
             });
+        }
+    };
+
+    const onChangePassageScriptureRef = (value: string) => {
+        setPassageScriptureRef(value);
+        if (props.mode === "edit") {
+            void updatePassageRef(props.id, value);
         }
     };
 
@@ -588,6 +621,7 @@ export default function JournalEditor(props: EditorProps) {
             const entry = await createJournal({
                 title,
                 scriptureRef,
+                passageRef: passageScriptureRef,
                 tags,
                 content,
             });
@@ -661,32 +695,30 @@ export default function JournalEditor(props: EditorProps) {
                     Scripture
                 </Text>
                 <View style={styles.scriptureInlineRow}>
-                    <View
+                    <Pressable
                         style={[
                             styles.scriptureRow,
-                            { backgroundColor: inputBackground, borderColor: inputBorder, justifyContent: 'space-between'},
+                            { backgroundColor: inputBackground, borderColor: inputBorder },
                         ]}
+                        onPress={toggleBible}
+                        accessibilityRole="button"
+                        accessibilityLabel="Toggle Bible"
                     >
-                        
-                        <View>
-                            <Text style={[ styles.scriptureRef, { color: colors.text, flex: 1,},]}>{scriptureRef}</Text>
-                        </View>
-
-                        <View style={styles.scriptureActions}>
-                            <Pressable
-                                style={styles.bibleButton}
-                                onPress={toggleBible}
-                                accessibilityRole="button"
-                                accessibilityLabel="Toggle Bible"
-                            >
-                                <Ionicons
-                                    name={bibleOpen ? "chevron-up" : "chevron-down"}
-                                size={18}
-                                color={ACCENT_COLOR}
-                            />
-                        </Pressable>
-                    </View>
-            
+                        <Text
+                            style={[
+                                styles.scriptureButtonText,
+                                { color: scriptureRef ? colors.text : mutedText },
+                            ]}
+                            numberOfLines={1}
+                        >
+                            {scriptureRef ? scriptureRef : scripturePromptText}
+                        </Text>
+                        <Ionicons
+                            name={bibleOpen ? "chevron-up" : "chevron-down"}
+                            size={18}
+                            color={ACCENT_COLOR}
+                        />
+                    </Pressable>
                 </View>
                     {props.mode === "create" && !props.fromBrp ? (
                         <Pressable
@@ -700,7 +732,6 @@ export default function JournalEditor(props: EditorProps) {
                         </Pressable>
                     ) : null}
                 </View>
-            </View>
             {bibleOpen ? (
                 <View
                     style={[
@@ -712,6 +743,48 @@ export default function JournalEditor(props: EditorProps) {
                         },
                     ]}
                 >
+                    <View
+                        style={[
+                            styles.passageInputRow,
+                            { backgroundColor: inputBackground, borderColor: inputBorder },
+                        ]}
+                    >
+                        <View style={styles.scriptureInputGroup}>
+                            <TextInput
+                                style={[
+                                    styles.scriptureRef,
+                                    {
+                                        color: colors.text,
+                                        width: scriptureInputWidth,
+                                    },
+                                ]}
+                                placeholder={scriptureInputPlaceholder}
+                                placeholderTextColor={mutedText}
+                                value={passageScriptureRef}
+                                onChangeText={onChangePassageScriptureRef}
+                                ref={scriptureInputRef}
+                            />
+                            <Pressable
+                                style={styles.editIconButton}
+                                onPress={() => scriptureInputRef.current?.focus()}
+                                accessibilityRole="button"
+                                accessibilityLabel="Edit scripture reference"
+                            >
+                                <Ionicons name="create-outline" size={16} color={ACCENT_COLOR} />
+                            </Pressable>
+                        </View>
+                        <Pressable
+                            style={styles.translationButton}
+                            onPress={cycleTranslation}
+                            accessibilityRole="button"
+                            accessibilityLabel="Change translation"
+                        >
+                            <Text style={styles.translationButtonText}>
+                                {translationKey}
+                            </Text>
+                        </Pressable>
+                    </View>
+                    <View style={[styles.passageDivider, { backgroundColor: inputBorder }]} />
                     {bibleLoading ? (
                         <ActivityIndicator size="small" color={ACCENT_COLOR} />
                     ) : bibleError ? (
@@ -719,37 +792,15 @@ export default function JournalEditor(props: EditorProps) {
                             {bibleError}
                         </Text>
                     ) : passageLines.length ? (
-                        <>
-                            <View style={{justifyContent: 'space-between', flexDirection: 'row', alignItems: 'center'}}>
-                                <TextInput style={[ styles.scriptureRef, { color: colors.text, flex: 1,},]}
-                                    placeholder="Enter a scripture reference"
-                                    placeholderTextColor={mutedText}
-                                    value={scriptureRef}
-                                    onChangeText={onChangeScriptureRef}
-                                />
-                                <Pressable
-                                    style={styles.translationButton}
-                                    onPress={cycleTranslation}
-                                    accessibilityRole="button"
-                                    accessibilityLabel="Change translation"
-                                >
-                                    <Text style={styles.translationButtonText}>
-                                        {translationKey}
-                                    </Text>
-                                </Pressable>
-
-                            </View>
-                            {passageLines.map((line, index) => (
-                                
-                                <Text
-                                    key={`${line}-${index}`}
-                                    style={[styles.passageLine, { color: colors.text }]}
-                                >
-                                    {line}
-                                </Text>
-                            ))}
-                        </>) 
-                    : (
+                        passageLines.map((line, index) => (
+                            <Text
+                                key={`${line}-${index}`}
+                                style={[styles.passageLine, { color: colors.text }]}
+                            >
+                                {line}
+                            </Text>
+                        ))
+                    ) : (
                         <Text style={[styles.passageEmpty, { color: mutedText }]}>
                             No verse found.
                         </Text>
@@ -1134,10 +1185,12 @@ const styles = StyleSheet.create({
         textAlignVertical: "top",
     },
     scriptureRef: {
-        paddingVertical: 0,
+        paddingVertical: 4,
         paddingHorizontal: 2,
-        marginRight: 3,
-        minHeight: 10,
+        minHeight: 30,
+        lineHeight: 18,
+        fontSize: 13,
+        flexShrink: 1,
         textAlignVertical: "center",
     },
     scriptureRow: {
@@ -1152,14 +1205,14 @@ const styles = StyleSheet.create({
         minHeight: 46,
         flex: 1,
     },
+    scriptureButtonText: {
+        flex: 1,
+        paddingHorizontal: 8,
+        fontSize: 15,
+    },
     scriptureInlineRow: {
         flexDirection: "row",
         alignItems: "flex-start",
-        gap: 8,
-    },
-    scriptureActions: {
-        flexDirection: "row",
-        alignItems: "center",
         gap: 8,
     },
     brpInline: {
@@ -1175,15 +1228,8 @@ const styles = StyleSheet.create({
         borderColor: ACCENT_COLOR,
     },
     brpInlineText: { color: "#fff", fontWeight: "600", fontSize: 12 },
-    bibleButton: {
-        paddingHorizontal: 6,
-        paddingVertical: 6,
-        borderRadius: 8,
-        alignItems: "center",
-        justifyContent: "center",
-    },
     translationButton: {
-        paddingHorizontal: 6,
+        paddingHorizontal: 4,
         paddingVertical: 6,
         borderRadius: 8,
     },
@@ -1198,6 +1244,28 @@ const styles = StyleSheet.create({
         padding: 12,
         marginBottom: 12,
         gap: 10,
+    },
+    passageInputRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingHorizontal: 4,
+        minHeight: 30,
+    },
+    scriptureInputGroup: {
+        flexDirection: "row",
+        alignItems: "center",
+        flexShrink: 1,
+        gap: 4,
+    },
+    editIconButton: {
+        paddingHorizontal: 4,
+        paddingVertical: 6,
+        marginRight: 2,
+    },
+    passageDivider: {
+        height: 1,
+        width: "100%",
     },
     passageLine: { fontSize: 14, lineHeight: 20 },
     passageEmpty: { fontSize: 13 },
