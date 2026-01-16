@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import {
     ActivityIndicator,
     Alert,
+    AppState,
+    BackHandler,
     KeyboardAvoidingView,
     Modal,
     Platform,
@@ -20,7 +22,7 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { apiGet, apiPost } from "../../src/api/client";
 import { ACCENT_COLOR } from "../../src/theme";
-import { useTheme } from "@react-navigation/native";
+import { useFocusEffect, useTheme } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { Asset } from "expo-asset";
@@ -254,6 +256,8 @@ export default function JournalEditor(props: EditorProps) {
         }
         return initial;
     });
+    const autoCreatedId = useRef<string | null>(null);
+    const exitSaveInFlight = useRef(false);
     const subtleText = isDark ? "#b9c0cf" : "#555";
     const mutedText = isDark ? "#8e95a6" : "#777";
     const inputBackground = isDark ? "#1a1f2b" : "#fff";
@@ -330,6 +334,113 @@ export default function JournalEditor(props: EditorProps) {
         if (!bibleOpen || !translationData) return [];
         return getPassageLines(passageScriptureRef, translationData);
     }, [bibleOpen, passageScriptureRef, translationData]);
+
+    const hasEntryContent = useMemo(() => {
+        const fields = [
+            title,
+            scriptureRef,
+            passageScriptureRef,
+            tagsText,
+            content.question,
+            content.observation,
+            content.application,
+            content.prayer,
+        ];
+        return fields.some((field) => field.trim().length > 0);
+    }, [
+        title,
+        scriptureRef,
+        passageScriptureRef,
+        tagsText,
+        content.question,
+        content.observation,
+        content.application,
+        content.prayer,
+    ]);
+
+    const persistBeforeExit = useCallback(
+        async (navigateBack: boolean) => {
+            if (exitSaveInFlight.current) return;
+            exitSaveInFlight.current = true;
+            try {
+                if (props.mode === "create") {
+                    if (!hasEntryContent) {
+                        if (navigateBack) router.back();
+                        return;
+                    }
+                    if (autoCreatedId.current) {
+                        if (navigateBack) router.back();
+                        return;
+                    }
+                    const entry = await createJournal({
+                        title,
+                        scriptureRef,
+                        passageRef: passageScriptureRef,
+                        tags,
+                        content,
+                    });
+                    autoCreatedId.current = entry._id;
+                    if (navigateBack) {
+                        router.back();
+                    } else {
+                        router.replace({
+                            pathname: "/journal/edit",
+                            params: { id: entry._id },
+                        });
+                    }
+                    return;
+                }
+                await updateJournal(props.id, {
+                    title,
+                    scriptureRef,
+                    passageRef: passageScriptureRef,
+                    tags,
+                    content,
+                });
+                if (navigateBack) {
+                    router.back();
+                }
+            } finally {
+                exitSaveInFlight.current = false;
+            }
+        },
+        [
+            content,
+            createJournal,
+            hasEntryContent,
+            passageScriptureRef,
+            props.id,
+            props.mode,
+            router,
+            scriptureRef,
+            tags,
+            title,
+            updateJournal,
+        ]
+    );
+
+    useEffect(() => {
+        const subscription = AppState.addEventListener("change", (state) => {
+            if (state === "background" || state === "inactive") {
+                void persistBeforeExit(false);
+            }
+        });
+        return () => subscription.remove();
+    }, [persistBeforeExit]);
+
+    useFocusEffect(
+        useCallback(() => {
+            const onBackPress = () => {
+                void persistBeforeExit(true);
+                return true;
+            };
+            const sub = BackHandler.addEventListener(
+                "hardwareBackPress",
+                onBackPress
+            );
+            return () => sub.remove();
+        }, [persistBeforeExit])
+    );
 
     useEffect(() => {
         if (props.mode !== "edit") return;
@@ -658,7 +769,9 @@ export default function JournalEditor(props: EditorProps) {
             <View style={styles.topHeaderRow}>
                 <Pressable
                     style={styles.topHeaderAction}
-                    onPress={() => router.back()}
+                    onPress={() => {
+                        void persistBeforeExit(true);
+                    }}
                 >
                     <Ionicons name="chevron-back" size={22} color={colors.text} />
                 </Pressable>

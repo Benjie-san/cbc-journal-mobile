@@ -1,5 +1,6 @@
 
-import { View, Alert, Modal, Pressable, StyleSheet, Text, Switch } from "react-native";
+import { View, Alert, Modal, Pressable, StyleSheet, Text, Switch, TextInput, Linking } from "react-native";
+import * as Clipboard from "expo-clipboard";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -29,6 +30,41 @@ export default function Settings() {
   const currentStreak = useStreakStore((state) => state.currentStreak);
   const longestStreak = useStreakStore((state) => state.longestStreak);
   const [logoutModalOpen, setLogoutModalOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackMessage, setFeedbackMessage] = useState("");
+
+  const sendFeedback = async () => {
+    const message = feedbackMessage.trim();
+    if (!message) {
+      Alert.alert("Missing message", "Please enter your feedback.");
+      return;
+    }
+    const userEmail = auth.currentUser?.email ?? "unknown";
+    const subject = "CBC Journal Feedback";
+    const body = `From: ${userEmail}\n\n${message}`;
+    const mailto = `mailto:dev.benjamin.perez@gmail.com?subject=${encodeURIComponent(
+      subject
+    )}&body=${encodeURIComponent(body)}`;
+    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(
+      "dev.benjamin.perez@gmail.com"
+    )}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    try {
+      await Linking.openURL(mailto);
+    } catch {
+      try {
+        await Linking.openURL(gmailUrl);
+      } catch {
+        await Clipboard.setStringAsync(body);
+        Alert.alert(
+          "Email not available",
+          "Message copied to clipboard. Please paste it into your email app."
+        );
+        return;
+      }
+    }
+    setFeedbackMessage("");
+    setFeedbackOpen(false);
+  };
 
   const revokeSessions = async () => {
     try {
@@ -134,6 +170,16 @@ export default function Settings() {
       </Pressable>
       <Pressable
         style={[styles.row, { backgroundColor: colors.card }]}
+        onPress={() => setFeedbackOpen(true)}
+      >
+        <View style={styles.rowLeft}>
+          <Ionicons name="chatbubbles-outline" size={20} color={colors.text} />
+          <Text style={[styles.rowText, { color: colors.text }]}>Feedback</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={colors.border} />
+      </Pressable>
+      <Pressable
+        style={[styles.row, { backgroundColor: colors.card }]}
         onPress={() => setLogoutModalOpen(true)}
       >
         <View style={styles.rowLeft}>
@@ -187,6 +233,48 @@ export default function Settings() {
             <Pressable
               style={styles.modalCancel}
               onPress={() => setLogoutModalOpen(false)}
+            >
+              <Text style={[styles.modalCancelText, { color: colors.text }]}>
+                Cancel
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+      <Modal
+        visible={feedbackOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFeedbackOpen(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, { backgroundColor: colors.card }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              Send feedback
+            </Text>
+            <Text style={[styles.modalBody, { color: colors.text }]}>
+              Share bugs, ideas, or anything we should improve.
+            </Text>
+            <TextInput
+              style={[
+                styles.feedbackInput,
+                { borderColor: colors.border, color: colors.text },
+              ]}
+              placeholder="Type your feedback..."
+              placeholderTextColor={colors.border}
+              value={feedbackMessage}
+              onChangeText={setFeedbackMessage}
+              multiline
+            />
+            <Pressable
+              style={[styles.modalAction, styles.modalActionPrimary]}
+              onPress={sendFeedback}
+            >
+              <Text style={styles.modalActionPrimaryText}>Send</Text>
+            </Pressable>
+            <Pressable
+              style={styles.modalCancel}
+              onPress={() => setFeedbackOpen(false)}
             >
               <Text style={[styles.modalCancelText, { color: colors.text }]}>
                 Cancel
@@ -255,4 +343,12 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   modalCancelText: { fontSize: 14, fontWeight: "600" },
+  feedbackInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    minHeight: 100,
+    textAlignVertical: "top",
+  },
 });
