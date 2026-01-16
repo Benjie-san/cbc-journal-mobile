@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { View, Text, TextInput, Alert, StyleSheet, Pressable } from "react-native";
+import { View, Text, TextInput, StyleSheet, Pressable } from "react-native";
 import {
     createUserWithEmailAndPassword,
     fetchSignInMethodsForEmail,
@@ -14,6 +14,7 @@ import { signInWithGoogle } from "../../src/api/google";
 import { useAuthStore } from "../../src/store/authStore";
 import { router } from "expo-router";
 import { ACCENT_COLOR } from "../../src/theme";
+import NoticeModal from "../../src/components/NoticeModal";
 
 export default function SignupScreen() {
     const { colors, dark: isDark } = useTheme();
@@ -24,6 +25,9 @@ export default function SignupScreen() {
     const [showPass, setShowPass] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
     const [acceptTerms, setAcceptTerms] = useState(false);
+    const [notice, setNotice] = useState<{ title: string; message: string } | null>(
+        null
+    );
     const inputBackground = isDark ? "#1a1f2b" : "#fff";
     const inputBorder = isDark ? "#2f3645" : "#ccc";
     const mutedText = isDark ? "#8e95a6" : "#777";
@@ -55,28 +59,38 @@ export default function SignupScreen() {
     const signUp = async () => {
         try {
         if (!canSubmit) {
-            Alert.alert("Invalid password", "Please check the requirements.");
+            setNotice({
+                title: "Invalid password",
+                message: "Please check the requirements.",
+            });
             return;
         }
         const trimmedEmail = email.trim();
         setAuthLoading(true, "Signing up...");
         const methods = await fetchSignInMethodsForEmail(auth, trimmedEmail);
         if (methods.includes("google.com")) {
-            Alert.alert(
-                "Use Google Sign-in",
-                "This email is linked to Google. Please sign up with Google instead."
-            );
+            setNotice({
+                title: "Use Google Sign-in",
+                message:
+                    "This email is linked to Google. Please sign up with Google instead.",
+            });
             return;
         }
         const credential = await createUserWithEmailAndPassword(auth, trimmedEmail, pass);
         await sendEmailVerification(credential.user);
-        Alert.alert(
-            "Verify your email",
-            "We sent a verification link to your email. Please verify to continue."
-        );
+        setNotice({
+            title: "Verify your email",
+            message:
+                "We sent a verification link to your email. Please verify to continue.",
+        });
         router.replace("/(auth)/verify-email");
         } catch (err: any) {
-        Alert.alert("Error", err.message);
+        const code = err?.code ?? "";
+        const message =
+            code === "auth/email-already-in-use"
+                ? "Email already in use."
+                : err?.message ?? "Sign up failed.";
+        setNotice({ title: "Error", message });
         } finally {
         setAuthLoading(false);
         }
@@ -227,7 +241,18 @@ export default function SignupScreen() {
             style={{ width: "100%", height: 48 }}
             size={GoogleSigninButton.Size.Wide}
             color={isDark ? GoogleSigninButton.Color.Light : GoogleSigninButton.Color.Dark}
-            onPress={signInWithGoogle}
+            onPress={async () => {
+                const result = await signInWithGoogle();
+                if (result && !result.ok) {
+                    setNotice({ title: result.title, message: result.message });
+                }
+            }}
+        />
+        <NoticeModal
+            visible={!!notice}
+            title={notice?.title ?? ""}
+            message={notice?.message ?? ""}
+            onClose={() => setNotice(null)}
         />
 
         </SafeAreaView>

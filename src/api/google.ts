@@ -1,4 +1,3 @@
-import { Alert } from "react-native";
 import { auth } from "../firebase/config";
 import {
     GoogleAuthProvider,
@@ -21,6 +20,10 @@ import { logDebug } from "../utils/logger";
 
 const PENDING_GOOGLE_TOKEN_KEY = "pendingGoogleIdToken";
 const PENDING_GOOGLE_EMAIL_KEY = "pendingGoogleEmail";
+
+export type GoogleSignInResult =
+    | { ok: true }
+    | { ok: false; title: string; message: string };
 
 const storePendingCredential = async (idToken: string, email?: string | null) => {
     await setSecureItem(PENDING_GOOGLE_TOKEN_KEY, idToken);
@@ -57,7 +60,7 @@ GoogleSignin.configure({
     webClientId: '791677061836-6sah8mfft46gbqjqjm3c4llmpf4iprqr.apps.googleusercontent.com',
 });
 
-export async function signInWithGoogle() {
+export async function signInWithGoogle(): Promise<GoogleSignInResult | null> {
     const setAuthLoading = useAuthStore.getState().setAuthLoading;
     let googleIdToken: string | null = null;
     let googleEmail: string | null = null;
@@ -77,7 +80,7 @@ export async function signInWithGoogle() {
             // ignore signout failures
         }
         const signInResult = await GoogleSignin.signIn();
-        if (signInResult.type !== "success") return;
+        if (signInResult.type !== "success") return null;
 
         googleIdToken = signInResult.data.idToken;
         if (!googleIdToken) {
@@ -90,11 +93,12 @@ export async function signInWithGoogle() {
             const hasGoogle = methods.includes("google.com");
             if (hasPassword && !hasGoogle) {
                 await storePendingCredential(googleIdToken, googleEmail);
-                Alert.alert(
-                    "Account exists",
-                    "This email is registered with a password. Please sign in with email to link Google."
-                );
-                return;
+                return {
+                    ok: false,
+                    title: "Account exists",
+                    message:
+                        "This email is registered with a password. Please sign in with email to link Google.",
+                };
             }
         }
 
@@ -120,21 +124,26 @@ export async function signInWithGoogle() {
         logDebug("Google sign-in token exchange complete");
 
 
-        router.replace("/(tabs)"); //lofin successful, redirects the user to the        proper section
-    
+        router.replace("/(tabs)");
+        return { ok: true };
     }catch (error: any) {
-        if (error?.code === "SIGN_IN_CANCELLED") return;
+        if (error?.code === "SIGN_IN_CANCELLED") return null;
         if (error?.code === "auth/account-exists-with-different-credential") {
             if (googleIdToken) {
                 await storePendingCredential(googleIdToken, googleEmail);
             }
-            Alert.alert(
-                "Account exists",
-                "This email is registered with a password. Please sign in with email to link Google."
-            );
-            return;
+            return {
+                ok: false,
+                title: "Account exists",
+                message:
+                    "This email is registered with a password. Please sign in with email to link Google.",
+            };
         }
-        Alert.alert("Login failed", error.message ?? "Unknown error");
+        return {
+            ok: false,
+            title: "Login failed",
+            message: error?.message ?? "Unknown error",
+        };
     } finally {
         setAuthLoading(false);
     }

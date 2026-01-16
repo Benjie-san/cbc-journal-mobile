@@ -12,11 +12,16 @@ import { useJournalStore } from "../../../src/store/journalStore";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import ConfirmModal from "../../../src/components/ConfirmModal";
 
 export default function TrashScreen() {
   const { colors, dark: isDark } = useTheme();
   const { trash, loadTrash, restore, permanentDelete } = useJournalStore();
   const [refreshing, setRefreshing] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<{
+    type: "restore" | "delete" | "clear";
+    id?: string;
+  } | null>(null);
   const subtleText = isDark ? "#b9c0cf" : "#555";
   const mutedText = isDark ? "#8e95a6" : "#888";
   const cardBackground = isDark ? colors.card : "#f2f2f2";
@@ -61,25 +66,11 @@ export default function TrashScreen() {
   };
 
   const confirmRestore = (id: string) => {
-    Alert.alert(
-      "Restore entry?",
-      "This will move the entry back to your journal list.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Restore", onPress: () => handleRestore(id) },
-      ]
-    );
+    setConfirmAction({ type: "restore", id });
   };
 
   const confirmDelete = (id: string) => {
-    Alert.alert(
-      "Delete permanently?",
-      "This cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => handleDelete(id) },
-      ]
-    );
+    setConfirmAction({ type: "delete", id });
   };
 
   const handleClearAll = async () => {
@@ -93,14 +84,7 @@ export default function TrashScreen() {
 
   const confirmClearAll = () => {
     if (!clearAllEnabled) return;
-    Alert.alert(
-      "Delete all permanently?",
-      "This will permanently delete all items in trash.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete all", style: "destructive", onPress: handleClearAll },
-      ]
-    );
+    setConfirmAction({ type: "clear" });
   };
 
   return (
@@ -170,6 +154,47 @@ export default function TrashScreen() {
               </Text>
             </Pressable>
           );
+        }}
+      />
+      <ConfirmModal
+        visible={!!confirmAction}
+        title={
+          confirmAction?.type === "restore"
+            ? "Restore entry?"
+            : confirmAction?.type === "delete"
+            ? "Delete permanently?"
+            : "Delete all permanently?"
+        }
+        message={
+          confirmAction?.type === "restore"
+            ? "This will move the entry back to your journal list."
+            : confirmAction?.type === "delete"
+            ? "This cannot be undone."
+            : "This will permanently delete all items in trash."
+        }
+        cancelText="Cancel"
+        confirmText={
+          confirmAction?.type === "restore"
+            ? "Restore"
+            : confirmAction?.type === "delete"
+            ? "Delete"
+            : "Delete all"
+        }
+        destructive={confirmAction?.type !== "restore"}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={() => {
+          const action = confirmAction;
+          setConfirmAction(null);
+          if (!action) return;
+          if (action.type === "restore" && action.id) {
+            void handleRestore(action.id);
+          }
+          if (action.type === "delete" && action.id) {
+            void handleDelete(action.id);
+          }
+          if (action.type === "clear") {
+            void handleClearAll();
+          }
         }}
       />
     </SafeAreaView>

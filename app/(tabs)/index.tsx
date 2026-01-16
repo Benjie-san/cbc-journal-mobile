@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Alert,
   Animated,
   Easing,
   View,
@@ -17,6 +16,7 @@ import { useFocusEffect, useTheme } from "@react-navigation/native";
 import { apiGet } from "../../src/api/client";
 import { usePlanStore } from "../../src/store/planStore";
 import { Ionicons } from "@expo/vector-icons";
+import ConfirmModal from "../../src/components/ConfirmModal";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getPlanDaysByYear, savePlanDays } from "../../src/db/localDb";
 import { ACCENT_COLOR } from "../../src/theme";
@@ -81,6 +81,7 @@ export default function JournalListScreen() {
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [sortMode, setSortMode] = useState<"modified" | "created">("modified");
   const [filterMode, setFilterMode] = useState<"all" | "week" | "month" | "year">("month");
+  const [confirmMoveId, setConfirmMoveId] = useState<string | null>(null);
   const statusTranslate = useRef(new Animated.Value(-20)).current;
   const statusOpacity = useRef(new Animated.Value(0)).current;
   const statusHeight = useRef(new Animated.Value(0)).current;
@@ -440,14 +441,7 @@ export default function JournalListScreen() {
   }, []);
 
   const confirmSoftDelete = (id: string) => {
-    Alert.alert(
-      "Move to trash?",
-      "You can restore this entry later.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Move", style: "destructive", onPress: () => softDelete(id) },
-      ]
-    );
+    setConfirmMoveId(id);
   };
 
   const statusBackground =
@@ -734,6 +728,22 @@ export default function JournalListScreen() {
           </View>
         </View>
       </Modal>
+
+      <ConfirmModal
+        visible={!!confirmMoveId}
+        title="Move to trash?"
+        message="You can restore this entry later."
+        cancelText="Cancel"
+        confirmText="Move"
+        destructive
+        onCancel={() => setConfirmMoveId(null)}
+        onConfirm={() => {
+          if (confirmMoveId) {
+            softDelete(confirmMoveId);
+          }
+          setConfirmMoveId(null);
+        }}
+      />
 
       {/* Floating Create Button */}
       <Pressable

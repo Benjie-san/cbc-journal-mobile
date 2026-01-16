@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Alert, AppState, Pressable, StyleSheet, Text, View } from "react-native";
+import { AppState, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "@react-navigation/native";
 import { auth } from "../../src/firebase/config";
@@ -11,12 +11,16 @@ import { useStreakStore } from "../../src/store/streakStore";
 import { router } from "expo-router";
 import { ACCENT_COLOR } from "../../src/theme";
 import { setSecureItem } from "../../src/storage/secureStorage";
+import NoticeModal from "../../src/components/NoticeModal";
 
 export default function VerifyEmailScreen() {
     const { colors, dark: isDark } = useTheme();
     const setAuthLoading = useAuthStore((state) => state.setAuthLoading);
     const setBackendReady = useAuthStore((state) => state.setBackendReady);
     const [resendCooldown, setResendCooldown] = useState(0);
+    const [notice, setNotice] = useState<{ title: string; message: string } | null>(
+        null
+    );
     const mutedText = isDark ? "#8e95a6" : "#777";
 
     const exchangeBackendToken = async () => {
@@ -34,7 +38,10 @@ export default function VerifyEmailScreen() {
         const user = auth.currentUser;
         if (!user) {
             if (showAlert) {
-                Alert.alert("Missing user", "Please log in again.");
+                setNotice({
+                    title: "Missing user",
+                    message: "Please log in again.",
+                });
                 router.replace("/(auth)");
             }
             return;
@@ -44,7 +51,10 @@ export default function VerifyEmailScreen() {
             await user.reload();
             if (!user.emailVerified) {
                 if (showAlert) {
-                    Alert.alert("Not verified yet", "Please check your email and verify.");
+                    setNotice({
+                        title: "Not verified yet",
+                        message: "Please check your email and verify.",
+                    });
                 }
                 return;
             }
@@ -58,7 +68,10 @@ export default function VerifyEmailScreen() {
             router.replace("/(tabs)");
         } catch (err: any) {
             if (showAlert) {
-                Alert.alert("Verification failed", err?.message ?? "Try again.");
+                setNotice({
+                    title: "Verification failed",
+                    message: err?.message ?? "Try again.",
+                });
             }
         } finally {
             if (startedLoading) {
@@ -99,9 +112,15 @@ export default function VerifyEmailScreen() {
         try {
             setResendCooldown(60);
             await sendEmailVerification(user);
-            Alert.alert("Email sent", "Check your inbox for the verification link.");
+            setNotice({
+                title: "Email sent",
+                message: "Check your inbox for the verification link.",
+            });
         } catch (err: any) {
-            Alert.alert("Resend failed", err?.message ?? "Try again later.");
+            setNotice({
+                title: "Resend failed",
+                message: err?.message ?? "Try again later.",
+            });
             setResendCooldown(0);
         }
     };
@@ -126,6 +145,12 @@ export default function VerifyEmailScreen() {
                     </Text>
                 </Pressable>
             </View>
+            <NoticeModal
+                visible={!!notice}
+                title={notice?.title ?? ""}
+                message={notice?.message ?? ""}
+                onClose={() => setNotice(null)}
+            />
         </SafeAreaView>
     );
 }

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, TextInput, Button, Alert, StyleSheet } from "react-native";
+import { View, Text, TextInput, Button, StyleSheet } from "react-native";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../../src/firebase/config";
 import { router } from "expo-router";
@@ -9,11 +9,15 @@ import { useTheme } from "@react-navigation/native";
 import { useAuthStore } from "../../src/store/authStore";
 import { linkPendingGoogleCredential } from "../../src/api/google";
 import { setSecureItem } from "../../src/storage/secureStorage";
+import NoticeModal from "../../src/components/NoticeModal";
 
 export default function EmailAuthScreen() {
     const { colors, dark: isDark } = useTheme();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [notice, setNotice] = useState<{ title: string; message: string } | null>(
+        null
+    );
     const setAuthLoading = useAuthStore((state) => state.setAuthLoading);
     const inputBackground = isDark ? "#1a1f2b" : "#fff";
     const inputBorder = isDark ? "#2f3645" : "#ccc";
@@ -40,7 +44,17 @@ export default function EmailAuthScreen() {
         await exchangeBackendToken();
         router.replace("/(tabs)");
         } catch (err: any) {
-        Alert.alert("Login Error", err.message);
+        const code = err?.code ?? "";
+        const isInvalidCredentials =
+            code === "auth/invalid-credential" ||
+            code === "auth/wrong-password" ||
+            code === "auth/user-not-found";
+        setNotice({
+            title: "Login Error",
+            message: isInvalidCredentials
+                ? "Email or password is incorrect."
+                : err?.message ?? "Unable to sign in.",
+        });
         } finally {
         setAuthLoading(false);
         }
@@ -78,6 +92,12 @@ export default function EmailAuthScreen() {
         />
 
         <Button title="Login" onPress={login} />
+        <NoticeModal
+            visible={!!notice}
+            title={notice?.title ?? ""}
+            message={notice?.message ?? ""}
+            onClose={() => setNotice(null)}
+        />
         </SafeAreaView>
     );
 }

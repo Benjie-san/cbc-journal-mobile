@@ -14,6 +14,7 @@ import {
     StyleSheet,
     Text,
     TextInput,
+    useWindowDimensions,
     View,
 } from "react-native";
 import { useJournalStore } from "../../src/store/journalStore";
@@ -198,6 +199,7 @@ const getPassageLines = (scripture: string, translation: BibleTranslation) => {
 export default function JournalEditor(props: EditorProps) {
     const router = useRouter();
     const { colors, dark: isDark } = useTheme();
+    const { height: windowHeight } = useWindowDimensions();
     const {
         journals,
         createJournal,
@@ -248,6 +250,10 @@ export default function JournalEditor(props: EditorProps) {
     const [bibleLoading, setBibleLoading] = useState(false);
     const [bibleError, setBibleError] = useState<string | null>(null);
     const scriptureInputRef = useRef<TextInput>(null);
+    const scrollRef = useRef<ScrollView>(null);
+    const [focusedField, setFocusedField] = useState<
+        "observation" | "application" | null
+    >(null);
     const [passageScriptureRef, setPassageScriptureRef] = useState(() => {
         if (props.mode !== "create") return "";
         const initial = props.initialScriptureRef ?? "";
@@ -277,6 +283,17 @@ export default function JournalEditor(props: EditorProps) {
         const estimated = length * 6 + 12;
         return Math.max(100, Math.min(200, estimated));
     }, [passageScriptureRef]);
+    const pinPassage =
+        bibleOpen &&
+        (focusedField === "observation" || focusedField === "application");
+    const pinnedSectionHeight = useMemo(
+        () => Math.max(180, Math.floor(windowHeight * 0.3)),
+        [windowHeight]
+    );
+    const stickyHeaderIndices = useMemo(
+        () => (pinPassage ? [0] : undefined),
+        [pinPassage]
+    );
 
     const labelText = {
         title: isSermonNote ? "Theme" : "Title",
@@ -792,8 +809,10 @@ export default function JournalEditor(props: EditorProps) {
             keyboardVerticalOffset={0}
         >
         <ScrollView
+            ref={scrollRef}
             contentContainerStyle={[styles.container, { backgroundColor: colors.background }]}
             keyboardShouldPersistTaps="handled"
+            stickyHeaderIndices={stickyHeaderIndices}
             refreshControl={
                 props.mode === "edit" ? (
                     <RefreshControl
@@ -803,123 +822,135 @@ export default function JournalEditor(props: EditorProps) {
                 ) : undefined
             }
         >
-            <View style={styles.field}>
-                <Text style={[styles.fieldLabel, { color: colors.text }]}>
-                    Scripture
-                </Text>
-                <View style={styles.scriptureInlineRow}>
-                    <Pressable
-                        style={[
-                            styles.scriptureRow,
-                            { backgroundColor: inputBackground, borderColor: inputBorder },
-                        ]}
-                        onPress={toggleBible}
-                        accessibilityRole="button"
-                        accessibilityLabel="Toggle Bible"
-                    >
-                        <Text
-                            style={[
-                                styles.scriptureButtonText,
-                                { color: scriptureRef ? colors.text : mutedText },
-                            ]}
-                            numberOfLines={1}
-                        >
-                            {scriptureRef ? scriptureRef : scripturePromptText}
+            <View style={[styles.passageStickyWrapper, { backgroundColor: colors.background }]}>
+                {!pinPassage ? (
+                    <View style={styles.field}>
+                        <Text style={[styles.fieldLabel, { color: colors.text }]}>
+                            Scripture
                         </Text>
-                        <Ionicons
-                            name={bibleOpen ? "chevron-up" : "chevron-down"}
-                            size={18}
-                            color={ACCENT_COLOR}
-                        />
-                    </Pressable>
-                </View>
-                    {props.mode === "create" && !props.fromBrp ? (
-                        <Pressable
-                            style={styles.brpInline}
-                            onPress={handlePickFromBrp}
-                            accessibilityRole="button"
-                            accessibilityLabel="Pick from BRP"
-                        >
-                            <Ionicons name="book-outline" size={16} color="#fff" />
-                            <Text style={styles.brpInlineText}>BRP</Text>
-                        </Pressable>
-                    ) : null}
-                </View>
-            {bibleOpen ? (
-                <View
-                    style={[
-                        styles.passageCard,
-                        {
-                            backgroundColor: inputBackground,
-                            borderColor: inputBorder,
-                            borderWidth: 1,
-                        },
-                    ]}
-                >
-                    <View
-                        style={[
-                            styles.passageInputRow,
-                            { backgroundColor: inputBackground, borderColor: inputBorder },
-                        ]}
-                    >
-                        <View style={styles.scriptureInputGroup}>
-                            <TextInput
-                                style={[
-                                    styles.scriptureRef,
-                                    {
-                                        color: colors.text,
-                                        width: scriptureInputWidth,
-                                    },
-                                ]}
-                                placeholder={scriptureInputPlaceholder}
-                                placeholderTextColor={mutedText}
-                                value={passageScriptureRef}
-                                onChangeText={onChangePassageScriptureRef}
-                                ref={scriptureInputRef}
-                            />
+                        <View style={styles.scriptureInlineRow}>
                             <Pressable
-                                style={styles.editIconButton}
-                                onPress={() => scriptureInputRef.current?.focus()}
+                                style={[
+                                    styles.scriptureRow,
+                                    { backgroundColor: inputBackground, borderColor: inputBorder },
+                                ]}
+                                onPress={toggleBible}
                                 accessibilityRole="button"
-                                accessibilityLabel="Edit scripture reference"
+                                accessibilityLabel="Toggle Bible"
                             >
-                                <Ionicons name="create-outline" size={16} color={ACCENT_COLOR} />
+                                <Text
+                                    style={[
+                                        styles.scriptureButtonText,
+                                        { color: scriptureRef ? colors.text : mutedText },
+                                    ]}
+                                    numberOfLines={1}
+                                >
+                                    {scriptureRef ? scriptureRef : scripturePromptText}
+                                </Text>
+                                <Ionicons
+                                    name={bibleOpen ? "chevron-up" : "chevron-down"}
+                                    size={18}
+                                    color={ACCENT_COLOR}
+                                />
                             </Pressable>
                         </View>
-                        <Pressable
-                            style={styles.translationButton}
-                            onPress={cycleTranslation}
-                            accessibilityRole="button"
-                            accessibilityLabel="Change translation"
-                        >
-                            <Text style={styles.translationButtonText}>
-                                {translationKey}
-                            </Text>
-                        </Pressable>
-                    </View>
-                    <View style={[styles.passageDivider, { backgroundColor: inputBorder }]} />
-                    {bibleLoading ? (
-                        <ActivityIndicator size="small" color={ACCENT_COLOR} />
-                    ) : bibleError ? (
-                        <Text style={[styles.passageEmpty, { color: mutedText }]}>
-                            {bibleError}
-                        </Text>
-                    ) : passageLines.length ? (
-                        passageLines.map((line, index) => (
-                            <Text
-                                key={`${line}-${index}`}
-                                style={[styles.passageLine, { color: colors.text }]}
+                        {props.mode === "create" && !props.fromBrp ? (
+                            <Pressable
+                                style={styles.brpInline}
+                                onPress={handlePickFromBrp}
+                                accessibilityRole="button"
+                                accessibilityLabel="Pick from BRP"
                             >
-                                {line}
-                            </Text>
-                        ))
-                    ) : (
-                        <Text style={[styles.passageEmpty, { color: mutedText }]}>
-                            No verse found.
-                        </Text>
-                    )}
-                </View>
-            ) : null}
+                                <Ionicons name="book-outline" size={16} color="#fff" />
+                                <Text style={styles.brpInlineText}>BRP</Text>
+                            </Pressable>
+                        ) : null}
+                    </View>
+                ) : null}
+                {bibleOpen ? (
+                    <View
+                        style={[
+                            styles.passageCard,
+                            {
+                                backgroundColor: inputBackground,
+                                borderColor: inputBorder,
+                                borderWidth: 1,
+                                height: pinnedSectionHeight,
+                            },
+                        ]}
+                    >
+                        <View
+                            style={[
+                                styles.passageInputRow,
+                                { backgroundColor: inputBackground, borderColor: inputBorder },
+                            ]}
+                        >
+                            <View style={styles.scriptureInputGroup}>
+                                <TextInput
+                                    style={[
+                                        styles.scriptureRef,
+                                        {
+                                            color: colors.text,
+                                            width: scriptureInputWidth,
+                                        },
+                                    ]}
+                                    placeholder={scriptureInputPlaceholder}
+                                    placeholderTextColor={mutedText}
+                                    value={passageScriptureRef}
+                                    onChangeText={onChangePassageScriptureRef}
+                                    ref={scriptureInputRef}
+                                />
+                                <Pressable
+                                    style={styles.editIconButton}
+                                    onPress={() => scriptureInputRef.current?.focus()}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Edit scripture reference"
+                                >
+                                    <Ionicons name="create-outline" size={16} color={ACCENT_COLOR} />
+                                </Pressable>
+                            </View>
+                            <Pressable
+                                style={styles.translationButton}
+                                onPress={cycleTranslation}
+                                accessibilityRole="button"
+                                accessibilityLabel="Change translation"
+                            >
+                                <Text style={styles.translationButtonText}>
+                                    {translationKey}
+                                </Text>
+                            </Pressable>
+                        </View>
+                        <View style={[styles.passageDivider, { backgroundColor: inputBorder }]} />
+                        <ScrollView
+                            style={styles.passageContent}
+                            contentContainerStyle={styles.passageContentInner}
+                            nestedScrollEnabled
+                            keyboardShouldPersistTaps="handled"
+                        >
+                            {bibleLoading ? (
+                                <ActivityIndicator size="small" color={ACCENT_COLOR} />
+                            ) : bibleError ? (
+                                <Text style={[styles.passageEmpty, { color: mutedText }]}>
+                                    {bibleError}
+                                </Text>
+                            ) : passageLines.length ? (
+                                passageLines.map((line, index) => (
+                                    <Text
+                                        key={`${line}-${index}`}
+                                        style={[styles.passageLine, { color: colors.text }]}
+                                    >
+                                        {line}
+                                    </Text>
+                                ))
+                            ) : (
+                                <Text style={[styles.passageEmpty, { color: mutedText }]}>
+                                    No verse found.
+                                </Text>
+                            )}
+                        </ScrollView>
+                    </View>
+                ) : null}
+            </View>
 
             <View style={styles.field}>
                 <Text style={[styles.fieldLabel, { color: colors.text }]}>
@@ -991,6 +1022,12 @@ export default function JournalEditor(props: EditorProps) {
                 <TextInput
                     style={[
                         styles.textarea,
+                        focusedField === "observation" &&
+                            bibleOpen &&
+                            {
+                                height: pinnedSectionHeight,
+                                maxHeight: pinnedSectionHeight,
+                            },
                         {
                             backgroundColor: inputBackground,
                             borderColor: inputBorder,
@@ -1001,6 +1038,12 @@ export default function JournalEditor(props: EditorProps) {
                     placeholderTextColor={mutedText}
                     value={content.observation}
                     onChangeText={v => onChangeField("observation", v)}
+                    onFocus={() => setFocusedField("observation")}
+                    onBlur={() =>
+                        setFocusedField((prev) =>
+                            prev === "observation" ? null : prev
+                        )
+                    }
                     multiline
                 />
             </View>
@@ -1012,6 +1055,12 @@ export default function JournalEditor(props: EditorProps) {
                 <TextInput
                     style={[
                         styles.textarea,
+                        focusedField === "application" &&
+                            bibleOpen &&
+                            {
+                                height: pinnedSectionHeight,
+                                maxHeight: pinnedSectionHeight,
+                            },
                         {
                             backgroundColor: inputBackground,
                             borderColor: inputBorder,
@@ -1022,6 +1071,12 @@ export default function JournalEditor(props: EditorProps) {
                     placeholderTextColor={mutedText}
                     value={content.application}
                     onChangeText={v => onChangeField("application", v)}
+                    onFocus={() => setFocusedField("application")}
+                    onBlur={() =>
+                        setFocusedField((prev) =>
+                            prev === "application" ? null : prev
+                        )
+                    }
                     multiline
                 />
             </View>
@@ -1282,6 +1337,9 @@ const styles = StyleSheet.create({
         justifyContent: "center",
     },
     container: { padding: 16 },
+    passageStickyWrapper: {
+        paddingBottom: 8,
+    },
     statusText: { fontSize: 12, fontWeight: "600" },
     statusSubtext: { fontSize: 11, marginTop: 2 },
     field: { marginBottom: 18 },
@@ -1379,6 +1437,12 @@ const styles = StyleSheet.create({
     passageDivider: {
         height: 1,
         width: "100%",
+    },
+    passageContent: {
+        flex: 1,
+    },
+    passageContentInner: {
+        paddingVertical: 2,
     },
     passageLine: { fontSize: 14, lineHeight: 20 },
     passageEmpty: { fontSize: 13 },

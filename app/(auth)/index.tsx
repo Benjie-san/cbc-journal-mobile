@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, router } from "expo-router";
-import { View, Text, StyleSheet, TextInput, Pressable, Image, Alert, Modal } from "react-native";
+import { View, Text, StyleSheet, TextInput, Pressable, Image, Modal } from "react-native";
 import {
     sendEmailVerification,
     sendPasswordResetEmail,
@@ -8,7 +8,6 @@ import {
 } from "firebase/auth";
 import { auth } from "../../src/firebase/config";
 import { linkPendingGoogleCredential, signInWithGoogle } from "../../src/api/google";
-import { GoogleSigninButton } from "@react-native-google-signin/google-signin";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "@react-navigation/native";
 import { apiPost } from "../../src/api/client";
@@ -16,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuthStore } from "../../src/store/authStore";
 import { ACCENT_COLOR } from "../../src/theme";
 import { setSecureItem } from "../../src/storage/secureStorage";
+import NoticeModal from "../../src/components/NoticeModal";
 
 export default function AuthIndex() {
     const { colors, dark: isDark } = useTheme();
@@ -25,6 +25,9 @@ export default function AuthIndex() {
     const [showPassword, setShowPassword] = useState(false);
     const [showResetModal, setShowResetModal] = useState(false);
     const [resetEmail, setResetEmail] = useState("");
+    const [notice, setNotice] = useState<{ title: string; message: string } | null>(
+        null
+    );
     const inputBackground = isDark ? "#1a1f2b" : "#fff";
     const inputBorder = isDark ? "#2f3645" : "#ccc";
     const mutedText = isDark ? "#8e95a6" : "#777";
@@ -53,10 +56,11 @@ export default function AuthIndex() {
             const user = auth.currentUser;
             if (user && !user.emailVerified) {
                 await sendEmailVerification(user);
-                Alert.alert(
-                    "Verify your email",
-                    "We sent a verification link to your email. Please verify to continue."
-                );
+                setNotice({
+                    title: "Verify your email",
+                    message:
+                        "We sent a verification link to your email. Please verify to continue.",
+                });
                 return;
             }
             if (user) {
@@ -64,7 +68,17 @@ export default function AuthIndex() {
             }
             await exchangeBackendToken();
         } catch (err: any) {
-            Alert.alert("Login Error", err?.message ?? "Unable to sign in");
+            const code = err?.code ?? "";
+            const isInvalidCredentials =
+                code === "auth/invalid-credential" ||
+                code === "auth/wrong-password" ||
+                code === "auth/user-not-found";
+            setNotice({
+                title: "Login Error",
+                message: isInvalidCredentials
+                    ? "Email or password is incorrect."
+                    : err?.message ?? "Unable to sign in",
+            });
         } finally {
             setAuthLoading(false);
         }
@@ -77,16 +91,25 @@ export default function AuthIndex() {
 
     const handleSendReset = async () => {
         if (!resetEmail.trim()) {
-            Alert.alert("Forgot Password", "Enter your email first.");
+            setNotice({
+                title: "Forgot Password",
+                message: "Enter your email first.",
+            });
             return;
         }
         setShowResetModal(false);
         try {
             setAuthLoading(true, "Processing...");
             await sendPasswordResetEmail(auth, resetEmail.trim());
-            Alert.alert("Email sent", "Check your inbox to reset your password.");
+            setNotice({
+                title: "Email sent",
+                message: "Check your inbox to reset your password.",
+            });
         } catch (err: any) {
-            Alert.alert("Reset failed", err?.message ?? "Unable to send reset email.");
+            setNotice({
+                title: "Reset failed",
+                message: err?.message ?? "Unable to send reset email.",
+            });
         } finally {
             setAuthLoading(false);
         }
@@ -149,12 +172,22 @@ export default function AuthIndex() {
 
         <Text style={[styles.orText, { color: mutedText }]}>or</Text>
 
-        <GoogleSigninButton
-            style={{ width: '100%', height: 48 }}
-            size={GoogleSigninButton.Size.Wide}
-            color={isDark ? GoogleSigninButton.Color.Light : GoogleSigninButton.Color.Dark}
-            onPress={signInWithGoogle}
-        />
+        <Pressable
+            style={styles.googleButton}
+            onPress={async () => {
+                const result = await signInWithGoogle();
+                if (result && !result.ok) {
+                    setNotice({ title: result.title, message: result.message });
+                }
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Sign in with Google"
+        >
+            <View style={styles.googleIconWrap}>
+                <Ionicons name="logo-google" size={18} color="#4285F4" />
+            </View>
+            <Text style={styles.googleButtonText}>Sign in with Google</Text>
+        </Pressable>
 
         <Text style={[styles.legalText, { color: mutedText }]}>
             By continuing, you agree to the{" "}
@@ -221,6 +254,12 @@ export default function AuthIndex() {
                 </View>
             </View>
         </Modal>
+        <NoticeModal
+            visible={!!notice}
+            title={notice?.title ?? ""}
+            message={notice?.message ?? ""}
+            onClose={() => setNotice(null)}
+        />
         </SafeAreaView>
     );
 }
@@ -251,6 +290,30 @@ const styles = StyleSheet.create({
     },
     signInText: { color: "#fff", fontWeight: "600" },
     orText: { textAlign: "center", marginBottom: 14 },
+    googleButton: {
+        width: "100%",
+        height: 48,
+        borderRadius: 8,
+        backgroundColor: "#4285F4",
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 10,
+        paddingHorizontal: 12,
+        marginBottom: 2,
+    },
+    googleIconWrap: {
+        width: 28,
+        height: 28,
+        borderRadius: 6,
+        backgroundColor: "#fff",
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    googleButtonText: {
+        color: "#fff",
+        fontWeight: "600",
+    },
     legalText: { textAlign: "center", fontSize: 12, marginTop: 12 },
     legalLink: { color: ACCENT_COLOR, fontWeight: "600" },
     signUpWrap: { marginTop: 18, alignItems: "center" },
