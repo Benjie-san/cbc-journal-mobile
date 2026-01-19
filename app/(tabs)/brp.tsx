@@ -49,6 +49,55 @@ const MONTHS = [
 const AUTO_SCROLL_MONTH = MONTHS[new Date().getMonth()];
 const SCROLL_OFFSET = 12;
 const PLAN_TIMEOUT_MS = 6000;
+const YEAR_TITLES: Record<number, string> = {
+  2024: "SMART CHURCH",
+  2025:
+    "Strengthening Church Core Values & Ministries with Smarter Strategies for Growth & Lasting Impact",
+  2026:
+    "FROM SMARTER TO WISER - Revisiting the Christian Basics to Strengthen the Church and Its Ministries for God's Glory",
+};
+const BRP_2026_MARKERS: Record<string, string> = {
+  January: "Returning to First Love: Love for God",
+  February: "Walking in God's Way: Obedience",
+  March: "Grounded in Christ: Faithfulness to God",
+  April: "Spiritual Rootedness: Wisdom",
+  May: "Love in Action: Practical Love",
+  June: "Integrity of the Heart: Honesty and Purity",
+  July: "Repentance and Dependence on God: Humility",
+  August: "Fear of the Lord: Reverence",
+  September: "Guarding the Good Deposit: Discernment",
+  October: "Walking the Path with Endurance: Perseverance",
+  November: "Living Worthy of the Calling: Holiness",
+  December: "Finishing the Race Well: Steadfastness",
+};
+const BRP_2024_MARKERS: Record<string, string> = {
+  January: "SYSTEMS IMPROVEMENT",
+  February: "SYSTEMS IMPROVEMENT",
+  March: "MACRO-EVANGELISM",
+  April: "MACRO-EVANGELISM",
+  May: "ACCOUNT SETTLEMENT",
+  June: "ACCOUNT SETTLEMENT",
+  July: "RELATIONAL DISCIPLESHIP",
+  August: "RELATIONAL DISCIPLESHIP",
+  September: "TRAINING-CENTERED",
+  October: "TRAINING-CENTERED",
+  November: "CHURCH",
+  December: "CHURCH",
+};
+const BRP_2025_MARKERS: Record<string, string> = {
+  January: "TRAINING",
+  February: "DISCIPLESHIP",
+  March: "BIBLICAL",
+  April: "THEOLOGICAL",
+  May: "CONTEXTUAL",
+  June: "MISSIONAL",
+  July: "HOLISTIC",
+  August: "REDEMPTIONAL",
+  September: "INTENTIONAL",
+  October: "OFFENSIVE",
+  November: "IMMERSIONAL",
+  December: "SMART CHRISTMAS",
+};
 
 const normalizeRef = (value: string) =>
   value.trim().replace(/[\u2013\u2014\u2212]/g, "-").toLowerCase();
@@ -348,15 +397,24 @@ export default function BRP() {
               ]}
               onPress={() => selectYear(year)}
             >
-              <Text
-                style={[
-                  styles.yearOptionText,
-                  { color: colors.text },
-                  year === selectedYear && styles.yearOptionTextActive,
-                ]}
-              >
-                {year}
-              </Text>
+              <View style={styles.yearOptionContent}>
+                <Text
+                  style={[
+                    styles.yearOptionText,
+                    { color: colors.text },
+                    year === selectedYear && styles.yearOptionTextActive,
+                  ]}
+                >
+                  {year}
+                </Text>
+                {YEAR_TITLES[year] ? (
+                  <Text
+                    style={[styles.yearOptionSubtitle, { color: mutedText }]}
+                  >
+                    {YEAR_TITLES[year]}
+                  </Text>
+                ) : null}
+              </View>
             </Pressable>
           ))}
         </View>
@@ -383,6 +441,14 @@ export default function BRP() {
           {MONTHS.map((month) => {
             const days = planByMonth[month] ?? [];
             const expanded = !!expandedMonths[month];
+            const marker =
+              selectedYear === 2026
+                ? BRP_2026_MARKERS[month]
+                : selectedYear === 2025
+                ? BRP_2025_MARKERS[month]
+                : selectedYear === 2024
+                ? BRP_2024_MARKERS[month]
+                : undefined;
 
             return (
               <View
@@ -399,9 +465,21 @@ export default function BRP() {
                   style={styles.sectionHeader}
                   onPress={() => toggleMonth(month)}
                 >
-                  <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                    {month}
-                  </Text>
+                  <View style={styles.sectionLeft}>
+                    <Text
+                      style={[styles.sectionTitle, { color: colors.text }]}
+                    >
+                      {month}
+                    </Text>
+                    {marker ? (
+                      <Text
+                        style={[styles.sectionMarker, { color: mutedText }]}
+                        numberOfLines={1}
+                      >
+                        {marker}
+                      </Text>
+                    ) : null}
+                  </View>
                   <View style={styles.sectionRight}>
                     <Text style={[styles.sectionCount, { color: mutedText }]}>
                       {days.length}
@@ -488,11 +566,14 @@ const styles = StyleSheet.create({
   },
   yearOption: {
     paddingHorizontal: 12,
-    minHeight: 38,
+    paddingVertical: 8,
+    minHeight: 48,
     justifyContent: "center",
   },
+  yearOptionContent: { flexDirection: "row", gap: 8, alignItems: "flex-start" },
   yearOptionActive: {},
-  yearOptionText: { fontSize: 14, lineHeight: 20 },
+  yearOptionText: { fontSize: 14, lineHeight: 20, width: 52 },
+  yearOptionSubtitle: { fontSize: 11, lineHeight: 16, flex: 1 },
   yearOptionTextActive: { fontWeight: "600" },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   error: {
@@ -512,7 +593,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
+  sectionLeft: { flex: 1, marginRight: 8 },
   sectionTitle: { fontSize: 16, fontWeight: "600" },
+  sectionMarker: { fontSize: 12, marginTop: 2 },
   sectionRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   sectionCount: { fontSize: 12 },
   sectionBody: {
