@@ -750,7 +750,7 @@ export default function JournalListScreen() {
         style={styles.fab}
         onPress={() => router.push("/journal/create")}
       >
-        <Text style={styles.fabText}>＋</Text>
+        <Ionicons name="add" size={28} color="#fff" />
       </Pressable>
     </SafeAreaView>
   );
@@ -865,7 +865,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  fabText: { color: "white", fontSize: 28, fontWeight: "600" },
   modalBackdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.35)",

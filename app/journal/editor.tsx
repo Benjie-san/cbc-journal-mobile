@@ -8,7 +8,6 @@ import {
     Modal,
     Platform,
     Pressable,
-    RefreshControl,
     ScrollView,
     Share,
     StyleSheet,
@@ -239,7 +238,6 @@ export default function JournalEditor(props: EditorProps) {
     const [historyLoading, setHistoryLoading] = useState(false);
     const [versions, setVersions] = useState<JournalVersion[]>([]);
     const [conflictVisible, setConflictVisible] = useState(false);
-    const [refreshing, setRefreshing] = useState(false);
     const [createSaving, setCreateSaving] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
     const [bibleOpen, setBibleOpen] = useState(false);
@@ -617,30 +615,6 @@ export default function JournalEditor(props: EditorProps) {
         setHistoryOpen(false);
     };
 
-    const refreshEntry = async () => {
-        if (props.mode !== "edit") return;
-        if (!existing?.serverId) {
-            Alert.alert("Not synced yet", "This entry is only saved locally.");
-            return;
-        }
-        setRefreshing(true);
-        try {
-            const entry = await apiGet(`/journals/${existing.serverId}`);
-            replaceJournal(entry);
-            applySnapshot({
-                title: entry.title,
-                scriptureRef: entry.scriptureRef,
-                tags: entry.tags,
-                content: entry.content,
-            });
-            clearConflict();
-        } catch (err: any) {
-            Alert.alert("Refresh failed", err?.message ?? "Unknown error");
-        } finally {
-            setRefreshing(false);
-        }
-    };
-
     const handleUseServer = () => {
         if (!conflictForEntry || props.mode !== "edit") return;
         const server = conflictForEntry.serverEntry;
@@ -813,14 +787,6 @@ export default function JournalEditor(props: EditorProps) {
             contentContainerStyle={[styles.container, { backgroundColor: colors.background }]}
             keyboardShouldPersistTaps="handled"
             stickyHeaderIndices={stickyHeaderIndices}
-            refreshControl={
-                props.mode === "edit" ? (
-                    <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={refreshEntry}
-                    />
-                ) : undefined
-            }
         >
             <View style={[styles.passageStickyWrapper, { backgroundColor: colors.background }]}>
                 {!pinPassage ? (

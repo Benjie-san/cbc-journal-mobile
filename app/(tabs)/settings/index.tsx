@@ -134,6 +134,16 @@ export default function Settings() {
       </View>
       <Pressable
         style={[styles.row, { backgroundColor: colors.card }]}
+        onPress={() => router.push("/(tabs)/settings/profile")}
+      >
+        <View style={styles.rowLeft}>
+          <Ionicons name="person-outline" size={20} color={colors.text} />
+          <Text style={[styles.rowText, { color: colors.text }]}>Account</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={colors.border} />
+      </Pressable>
+      <Pressable
+        style={[styles.row, { backgroundColor: colors.card }]}
         onPress={() => router.push("/(tabs)/settings/trash")}
       >
         <View style={styles.rowLeft}>

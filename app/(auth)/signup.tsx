@@ -89,7 +89,11 @@ export default function SignupScreen() {
         const message =
             code === "auth/email-already-in-use"
                 ? "Email already in use."
-                : err?.message ?? "Sign up failed.";
+                : code === "auth/invalid-email"
+                ? "Enter a valid email address."
+                : code === "auth/weak-password"
+                ? "Password is too weak."
+                : "Sign up failed. Please try again.";
         setNotice({ title: "Error", message });
         } finally {
         setAuthLoading(false);

@@ -73,11 +73,17 @@ export default function AuthIndex() {
                 code === "auth/invalid-credential" ||
                 code === "auth/wrong-password" ||
                 code === "auth/user-not-found";
+            const isRateLimited = code === "auth/too-many-requests";
+            const isNetworkError = code === "auth/network-request-failed";
             setNotice({
                 title: "Login Error",
                 message: isInvalidCredentials
                     ? "Email or password is incorrect."
-                    : err?.message ?? "Unable to sign in",
+                    : isRateLimited
+                    ? "Too many attempts. Try again later."
+                    : isNetworkError
+                    ? "Network error. Check your connection."
+                    : "Unable to sign in.",
             });
         } finally {
             setAuthLoading(false);

@@ -117,9 +117,16 @@ export default function VerifyEmailScreen() {
                 message: "Check your inbox for the verification link.",
             });
         } catch (err: any) {
+            const code = err?.code ?? "";
+            const message =
+                code === "auth/too-many-requests"
+                    ? "Too many attempts. Try again later."
+                    : code === "auth/network-request-failed"
+                    ? "Network error. Check your connection."
+                    : "Try again later.";
             setNotice({
                 title: "Resend failed",
-                message: err?.message ?? "Try again later.",
+                message,
             });
             setResendCooldown(0);
         }

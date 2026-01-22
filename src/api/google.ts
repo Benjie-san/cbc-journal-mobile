@@ -142,7 +142,7 @@ export async function signInWithGoogle(): Promise<GoogleSignInResult | null> {
         return {
             ok: false,
             title: "Login failed",
-            message: error?.message ?? "Unknown error",
+            message: "Google sign-in failed. Please try again.",
         };
     } finally {
         setAuthLoading(false);

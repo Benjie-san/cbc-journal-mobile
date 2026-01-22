@@ -8,6 +8,7 @@ export default function SettingsLayout() {
       }}
     >
       <Stack.Screen name="index" options={{ title: "Menu" }} />
+      <Stack.Screen name="profile" options={{ title: "Account" }} />
       <Stack.Screen name="trash" options={{ title: "Trash" }} />
       <Stack.Screen name="tutorial" options={{ title: "Tutorial" }} />
       <Stack.Screen name="about" options={{ title: "About" }} />
